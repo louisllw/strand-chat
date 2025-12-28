@@ -52,7 +52,7 @@ const Register = () => {
       await register(username, email, password);
       toast({
         title: 'Account created!',
-        description: 'Welcome to Messenger.',
+        description: 'Welcome to Strand.',
       });
       navigate('/chat');
     } catch (error) {
