@@ -1,0 +1,44 @@
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  status: 'online' | 'offline' | 'away';
+  lastSeen?: Date;
+}
+
+export interface Message {
+  id: string;
+  content: string;
+  senderId: string;
+  conversationId: string;
+  timestamp: Date;
+  read: boolean;
+  type: 'text' | 'image' | 'file';
+  attachmentUrl?: string;
+}
+
+export interface Conversation {
+  id: string;
+  name?: string;
+  type: 'direct' | 'group';
+  participants: User[];
+  lastMessage?: Message;
+  unreadCount: number;
+  avatar?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+export interface TypingIndicator {
+  conversationId: string;
+  userId: string;
+  username: string;
+}
