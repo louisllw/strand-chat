@@ -1,155 +1,8 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Message, Conversation, User, TypingIndicator } from '@/types';
-
-// Mock data
-const mockUsers: User[] = [
-  { id: '2', username: 'Alice Smith', email: 'alice@example.com', status: 'online' },
-  { id: '3', username: 'Bob Johnson', email: 'bob@example.com', status: 'away' },
-  { id: '4', username: 'Carol White', email: 'carol@example.com', status: 'offline', lastSeen: new Date(Date.now() - 3600000) },
-  { id: '5', username: 'David Brown', email: 'david@example.com', status: 'online' },
-  { id: '6', username: 'Emma Davis', email: 'emma@example.com', status: 'online' },
-];
-
-const mockConversations: Conversation[] = [
-  {
-    id: '1',
-    type: 'direct',
-    participants: [mockUsers[0]],
-    lastMessage: {
-      id: 'm1',
-      content: 'Hey! How are you doing?',
-      senderId: '2',
-      conversationId: '1',
-      timestamp: new Date(Date.now() - 300000),
-      read: false,
-      type: 'text',
-    },
-    unreadCount: 2,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    type: 'direct',
-    participants: [mockUsers[1]],
-    lastMessage: {
-      id: 'm2',
-      content: 'The meeting is at 3pm',
-      senderId: '1',
-      conversationId: '2',
-      timestamp: new Date(Date.now() - 1800000),
-      read: true,
-      type: 'text',
-    },
-    unreadCount: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Project Team',
-    type: 'group',
-    participants: [mockUsers[0], mockUsers[1], mockUsers[2], mockUsers[3]],
-    lastMessage: {
-      id: 'm3',
-      content: 'Great progress everyone! 🎉',
-      senderId: '4',
-      conversationId: '3',
-      timestamp: new Date(Date.now() - 7200000),
-      read: true,
-      type: 'text',
-    },
-    unreadCount: 5,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    type: 'direct',
-    participants: [mockUsers[2]],
-    lastMessage: {
-      id: 'm4',
-      content: 'Thanks for the update!',
-      senderId: '1',
-      conversationId: '4',
-      timestamp: new Date(Date.now() - 86400000),
-      read: true,
-      type: 'text',
-    },
-    unreadCount: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '5',
-    name: 'Design Review',
-    type: 'group',
-    participants: [mockUsers[3], mockUsers[4]],
-    lastMessage: {
-      id: 'm5',
-      content: 'I love the new mockups!',
-      senderId: '6',
-      conversationId: '5',
-      timestamp: new Date(Date.now() - 172800000),
-      read: true,
-      type: 'text',
-    },
-    unreadCount: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
-
-const generateMockMessages = (conversationId: string): Message[] => {
-  const messages: Message[] = [
-    {
-      id: 'msg1',
-      content: 'Hey there! 👋',
-      senderId: '2',
-      conversationId,
-      timestamp: new Date(Date.now() - 3600000),
-      read: true,
-      type: 'text',
-    },
-    {
-      id: 'msg2',
-      content: 'Hi! How are you doing?',
-      senderId: '1',
-      conversationId,
-      timestamp: new Date(Date.now() - 3500000),
-      read: true,
-      type: 'text',
-    },
-    {
-      id: 'msg3',
-      content: "I'm doing great! Just finished working on that project we discussed.",
-      senderId: '2',
-      conversationId,
-      timestamp: new Date(Date.now() - 3400000),
-      read: true,
-      type: 'text',
-    },
-    {
-      id: 'msg4',
-      content: "That's awesome! Can't wait to see it.",
-      senderId: '1',
-      conversationId,
-      timestamp: new Date(Date.now() - 3300000),
-      read: true,
-      type: 'text',
-    },
-    {
-      id: 'msg5',
-      content: "I'll send you the details shortly. Are you free for a quick call later?",
-      senderId: '2',
-      conversationId,
-      timestamp: new Date(Date.now() - 300000),
-      read: false,
-      type: 'text',
-    },
-  ];
-  return messages;
-};
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { Message, Conversation, TypingIndicator, MessageReaction } from '@/types';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSocket } from '@/contexts/SocketContext';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -157,63 +10,33 @@ interface ChatContextType {
   messages: Message[];
   typingIndicators: TypingIndicator[];
   searchQuery: string;
+  replyToMessage: Message | null;
   setActiveConversation: (conversation: Conversation | null) => void;
   sendMessage: (content: string, type?: 'text' | 'image' | 'file') => void;
   setSearchQuery: (query: string) => void;
   markAsRead: (conversationId: string) => void;
+  createDirectConversation: (username: string) => Promise<Conversation | null>;
+  createGroupConversation: (name: string, usernames: string[]) => Promise<Conversation | null>;
+  addGroupMembers: (conversationId: string, usernames: string[]) => Promise<void>;
+  leaveGroup: (conversationId: string) => Promise<void>;
+  refreshConversations: () => Promise<Conversation[]>;
+  setReplyToMessage: (message: Message | null) => void;
+  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
+  const { user } = useAuth();
+  const { socket, on, off, emit } = useSocket();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingIndicators, setTypingIndicators] = useState<TypingIndicator[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSetActiveConversation = useCallback((conversation: Conversation | null) => {
-    setActiveConversation(conversation);
-    if (conversation) {
-      setMessages(generateMockMessages(conversation.id));
-      // Simulate typing indicator
-      if (conversation.participants[0]?.status === 'online') {
-        setTimeout(() => {
-          setTypingIndicators([{
-            conversationId: conversation.id,
-            userId: conversation.participants[0].id,
-            username: conversation.participants[0].username,
-          }]);
-          setTimeout(() => setTypingIndicators([]), 3000);
-        }, 2000);
-      }
-    } else {
-      setMessages([]);
-    }
-  }, []);
-
-  const sendMessage = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text') => {
-    if (!activeConversation || !content.trim()) return;
-
-    const newMessage: Message = {
-      id: 'msg_' + Date.now(),
-      content,
-      senderId: '1', // Current user
-      conversationId: activeConversation.id,
-      timestamp: new Date(),
-      read: false,
-      type,
-    };
-
-    setMessages(prev => [...prev, newMessage]);
-    
-    // Update conversation's last message
-    setConversations(prev => prev.map(conv => 
-      conv.id === activeConversation.id
-        ? { ...conv, lastMessage: newMessage, updatedAt: new Date() }
-        : conv
-    ));
-  }, [activeConversation]);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+  const activeConversationIdRef = useRef<string | null>(null);
 
   const markAsRead = useCallback((conversationId: string) => {
     setConversations(prev => prev.map(conv =>
@@ -221,7 +44,340 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? { ...conv, unreadCount: 0 }
         : conv
     ));
+    apiFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {});
   }, []);
+
+  const normalizeReactions = useCallback((reactions: MessageReaction[] | undefined) => {
+    const currentUsername = (user?.username || '').toLowerCase();
+    return (reactions || []).map((reaction) => ({
+      ...reaction,
+      reactedByMe: reaction.usernames
+        ? reaction.usernames.map(name => name.toLowerCase()).includes(currentUsername)
+        : reaction.reactedByMe,
+    }));
+  }, [user?.username]);
+
+  const normalizeMessage = useCallback((message: Message) => ({
+    ...message,
+    timestamp: new Date(message.timestamp),
+    reactions: normalizeReactions(message.reactions),
+  }), [normalizeReactions]);
+
+  const normalizeConversation = useCallback((conversation: Conversation) => ({
+    ...conversation,
+    createdAt: new Date(conversation.createdAt),
+    updatedAt: new Date(conversation.updatedAt),
+    lastMessage: conversation.lastMessage
+      ? normalizeMessage(conversation.lastMessage)
+      : undefined,
+    participants: (conversation.participants || []).map(participant => ({
+      ...participant,
+      lastSeen: participant.lastSeen ? new Date(participant.lastSeen) : undefined,
+    })),
+  }), [normalizeMessage]);
+
+  const refreshConversations = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ conversations: Conversation[] }>('/api/conversations');
+      const normalized = data.conversations.map(normalizeConversation);
+      setConversations(normalized);
+      return normalized;
+    } catch {
+      setConversations([]);
+      return [];
+    }
+  }, [normalizeConversation]);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  useEffect(() => {
+    const handleFocus = () => refreshConversations();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshConversations();
+      }
+    };
+    const intervalId = window.setInterval(() => {
+      if (!socket?.connected) {
+        refreshConversations();
+      }
+    }, 10000);
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [refreshConversations, socket]);
+
+  useEffect(() => {
+    if (!activeConversation) {
+      setMessages([]);
+      setReplyToMessage(null);
+      activeConversationIdRef.current = null;
+      return;
+    }
+    activeConversationIdRef.current = activeConversation.id;
+    const loadMessages = async () => {
+      try {
+        const data = await apiFetch<{ messages: Message[] }>(
+          `/api/conversations/${activeConversation.id}/messages`
+        );
+        setMessages(data.messages.map(normalizeMessage));
+        markAsRead(activeConversation.id);
+      } catch {
+        setMessages([]);
+      }
+    };
+    loadMessages();
+    emit('conversation:join', activeConversation.id);
+  }, [activeConversation, normalizeMessage, emit, markAsRead]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewMessage = (message: Message) => {
+      const normalized = normalizeMessage(message);
+      const activeId = activeConversationIdRef.current;
+      setConversations(prev => {
+        let found = false;
+        const next = prev.map(conv =>
+          conv.id === normalized.conversationId
+            ? (() => {
+                found = true;
+                return {
+                  ...conv,
+                  lastMessage: normalized,
+                  updatedAt: normalized.timestamp,
+                  unreadCount:
+                    conv.id === activeConversation?.id || normalized.senderId === user?.id
+                      ? conv.unreadCount
+                      : conv.unreadCount + 1,
+                };
+              })()
+            : conv
+        );
+        if (!found) {
+          refreshConversations();
+          return prev;
+        }
+        return next;
+      });
+
+      if (activeId === normalized.conversationId) {
+        setMessages(prev => (prev.some(msg => msg.id === normalized.id) ? prev : [...prev, normalized]));
+        markAsRead(normalized.conversationId);
+      }
+    };
+
+    const handleTyping = (indicator: TypingIndicator) => {
+      if (indicator.userId === user?.id) return;
+      setTypingIndicators(prev => {
+        const exists = prev.some(t => t.userId === indicator.userId && t.conversationId === indicator.conversationId);
+        if (exists) return prev;
+        return [...prev, indicator];
+      });
+    };
+
+    const handleTypingStop = (payload: { conversationId: string; userId: string }) => {
+      setTypingIndicators(prev =>
+        prev.filter(t => !(t.conversationId === payload.conversationId && t.userId === payload.userId))
+      );
+    };
+
+    const handleReactionUpdate = (payload: { messageId: string; reactions: MessageReaction[] }) => {
+      setMessages(prev =>
+        prev.map(message =>
+          message.id === payload.messageId
+            ? { ...message, reactions: normalizeReactions(payload.reactions) }
+            : message
+        )
+      );
+    };
+
+    const handleConversationCreated = (payload: { conversationId?: string }) => {
+      refreshConversations();
+      if (payload?.conversationId) {
+        emit('conversation:join', payload.conversationId);
+      }
+    };
+
+    const handleConversationUpdated = () => {
+      refreshConversations();
+    };
+
+    const handlePresenceUpdate = (payload: { userId: string; status: 'online' | 'offline' | 'away'; lastSeen?: string | null }) => {
+      setConversations(prev =>
+        prev.map(conversation => ({
+          ...conversation,
+          participants: conversation.participants.map(participant =>
+            participant.id === payload.userId
+              ? {
+                  ...participant,
+                  status: payload.status,
+                  lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : participant.lastSeen,
+                }
+              : participant
+          ),
+        }))
+      );
+      setActiveConversation(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          participants: prev.participants.map(participant =>
+            participant.id === payload.userId
+              ? {
+                  ...participant,
+                  status: payload.status,
+                  lastSeen: payload.lastSeen ? new Date(payload.lastSeen) : participant.lastSeen,
+                }
+              : participant
+          ),
+        };
+      });
+    };
+
+    on('message:new', handleNewMessage);
+    on('typing:indicator', handleTyping);
+    on('typing:stop', handleTypingStop);
+    on('reaction:update', handleReactionUpdate);
+    on('presence:update', handlePresenceUpdate);
+    on('conversation:created', handleConversationCreated);
+    on('conversation:updated', handleConversationUpdated);
+    return () => {
+      off('message:new');
+      off('typing:indicator');
+      off('typing:stop');
+      off('reaction:update');
+      off('presence:update');
+      off('conversation:created');
+      off('conversation:updated');
+    };
+  }, [socket, on, off, normalizeMessage, user?.id, refreshConversations, emit, markAsRead]);
+
+  const handleSetActiveConversation = useCallback((conversation: Conversation | null) => {
+    setActiveConversation(conversation);
+    setReplyToMessage(null);
+  }, []);
+
+  const sendMessage = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text') => {
+    if (!activeConversation || !content.trim()) return;
+    const payload = {
+      conversationId: activeConversation.id,
+      content,
+      type,
+      replyToId: replyToMessage?.id,
+    };
+    if (socket?.connected) {
+      socket.emit('message:send', payload, (response: { message?: Message; error?: string }) => {
+        if (response?.message) {
+          const normalized = normalizeMessage(response.message);
+          setMessages(prev => (prev.some(msg => msg.id === normalized.id) ? prev : [...prev, normalized]));
+        }
+      });
+      setReplyToMessage(null);
+      return;
+    }
+
+    apiFetch<{ message: Message }>(`/api/conversations/${activeConversation.id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+      .then(({ message }) => {
+        const normalized = normalizeMessage(message);
+        setMessages(prev => (prev.some(msg => msg.id === normalized.id) ? prev : [...prev, normalized]));
+      })
+      .catch(() => {});
+    setReplyToMessage(null);
+  }, [activeConversation, socket, normalizeMessage, replyToMessage]);
+
+  const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    if (socket?.connected) {
+      socket.emit('reaction:toggle', { messageId, emoji }, (response: { reactions?: MessageReaction[]; error?: string }) => {
+        if (response?.reactions) {
+          setMessages(prev =>
+            prev.map(message =>
+              message.id === messageId
+                ? { ...message, reactions: normalizeReactions(response.reactions) }
+                : message
+            )
+          );
+        }
+      });
+      return;
+    }
+
+    const data = await apiFetch<{ messageId: string; reactions: MessageReaction[] }>(
+      `/api/messages/${messageId}/reactions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ emoji }),
+      }
+    );
+    setMessages(prev =>
+      prev.map(message =>
+        message.id === data.messageId
+          ? { ...message, reactions: normalizeReactions(data.reactions) }
+          : message
+      )
+    );
+  }, [socket, normalizeReactions]);
+
+  const createDirectConversation = useCallback(async (username: string) => {
+    const data = await apiFetch<{ conversationId: string }>('/api/conversations/direct', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+    const updated = await refreshConversations();
+    const created = updated.find(conv => conv.id === data.conversationId) || null;
+    if (created) {
+      setActiveConversation(created);
+      return created;
+    }
+    return null;
+  }, [refreshConversations]);
+
+  const createGroupConversation = useCallback(async (name: string, usernames: string[]) => {
+    const data = await apiFetch<{ conversationId: string }>('/api/conversations/group', {
+      method: 'POST',
+      body: JSON.stringify({ name, usernames }),
+    });
+    const updated = await refreshConversations();
+    const created = updated.find(conv => conv.id === data.conversationId) || null;
+    if (created) {
+      setActiveConversation(created);
+      return created;
+    }
+    return null;
+  }, [refreshConversations]);
+
+  const addGroupMembers = useCallback(async (conversationId: string, usernames: string[]) => {
+    await apiFetch(`/api/conversations/${conversationId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ usernames }),
+    });
+    await refreshConversations();
+  }, [refreshConversations]);
+
+  const leaveGroup = useCallback(async (conversationId: string) => {
+    await apiFetch(`/api/conversations/${conversationId}/leave`, { method: 'POST' });
+    setConversations(prev => prev.filter(conversation => conversation.id !== conversationId));
+    setActiveConversation(prev => (prev?.id === conversationId ? null : prev));
+    setMessages(prev => (activeConversationIdRef.current === conversationId ? [] : prev));
+    await refreshConversations();
+  }, [refreshConversations]);
+
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    await apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });
+    setConversations(prev => prev.filter(conversation => conversation.id !== conversationId));
+    setActiveConversation(prev => (prev?.id === conversationId ? null : prev));
+    setMessages(prev => (activeConversationIdRef.current === conversationId ? [] : prev));
+    await refreshConversations();
+  }, [refreshConversations]);
 
   return (
     <ChatContext.Provider
@@ -231,10 +387,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         messages,
         typingIndicators,
         searchQuery,
+        replyToMessage,
         setActiveConversation: handleSetActiveConversation,
         sendMessage,
         setSearchQuery,
         markAsRead,
+        createDirectConversation,
+        createGroupConversation,
+        addGroupMembers,
+        leaveGroup,
+        refreshConversations,
+        setReplyToMessage,
+        toggleReaction,
+        deleteConversation,
       }}
     >
       {children}

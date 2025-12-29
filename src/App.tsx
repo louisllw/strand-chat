@@ -76,9 +76,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ChatProvider>
-              <SocketProvider>
-                <Chat />
-              </SocketProvider>
+              <Chat />
             </ChatProvider>
           </ProtectedRoute>
         }
@@ -99,15 +97,17 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      <SocketProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </SocketProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

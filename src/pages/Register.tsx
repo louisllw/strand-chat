@@ -56,9 +56,10 @@ const Register = () => {
       });
       navigate('/chat');
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please try again later.';
       toast({
         title: 'Registration failed',
-        description: 'Please try again later.',
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -102,18 +103,20 @@ const Register = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Full Name</Label>
+              <Label htmlFor="username">Username</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <span className="absolute left-9 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="your_username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10"
+                  className="pl-12"
                 />
               </div>
+              <p className="text-xs text-muted-foreground">One word, 3-30 chars. Letters, numbers, . or _</p>
             </div>
 
             <div className="space-y-2">

@@ -5,6 +5,7 @@ export interface User {
   avatar?: string;
   status: 'online' | 'offline' | 'away';
   lastSeen?: Date;
+  theme?: 'light' | 'dark';
 }
 
 export interface Message {
@@ -14,8 +15,21 @@ export interface Message {
   conversationId: string;
   timestamp: Date;
   read: boolean;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'system';
   attachmentUrl?: string;
+  replyTo?: {
+    id: string;
+    content: string;
+    senderId: string;
+  };
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  usernames?: string[];
 }
 
 export interface Conversation {
@@ -32,7 +46,6 @@ export interface Conversation {
 
 export interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }

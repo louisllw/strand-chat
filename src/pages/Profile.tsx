@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { UserAvatar } from '@/components/chat/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
+import { apiFetch } from '@/lib/api';
 import {
   ArrowLeft,
   Camera,
@@ -43,20 +44,168 @@ const Profile = () => {
     sounds: true,
     desktop: false,
   });
+  const [usernameStatus, setUsernameStatus] = useState({
+    state: 'idle' as 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'cooldown',
+    message: '',
+    daysRemaining: 0,
+    canChange: true,
+    lastChecked: '',
+  });
+  const latestUsernameRef = useRef('');
+
+  useEffect(() => {
+    if (!user) return;
+    setFormData(prev => ({
+      ...prev,
+      username: user.username,
+      email: user.email,
+    }));
+  }, [user]);
+
+  const normalizedUsername = useMemo(() => formData.username.trim().replace(/^@+/, '').toLowerCase(), [formData.username]);
+  const isUsernameValid = useMemo(() => /^[a-z0-9._]{3,30}$/.test(normalizedUsername), [normalizedUsername]);
+  const isUsernameChanged = normalizedUsername !== (user?.username || '').toLowerCase();
+  const isEmailChanged = formData.email.trim().toLowerCase() !== (user?.email || '').toLowerCase();
+
+  useEffect(() => {
+    if (!user) return;
+    if (!normalizedUsername) {
+      latestUsernameRef.current = normalizedUsername;
+      setUsernameStatus({
+        state: 'invalid',
+        message: 'Username is required.',
+        daysRemaining: 0,
+        canChange: false,
+        lastChecked: normalizedUsername,
+      });
+      return;
+    }
+    if (!isUsernameValid) {
+      latestUsernameRef.current = normalizedUsername;
+      setUsernameStatus({
+        state: 'invalid',
+        message: 'One word, 3-30 chars. Letters, numbers, . or _',
+        daysRemaining: 0,
+        canChange: false,
+        lastChecked: normalizedUsername,
+      });
+      return;
+    }
+
+    latestUsernameRef.current = normalizedUsername;
+    setUsernameStatus(prev => ({
+      ...prev,
+      state: 'checking',
+      message: 'Checking availability...',
+    }));
+
+    const timer = window.setTimeout(async () => {
+      const requestUsername = normalizedUsername;
+      try {
+        const data = await apiFetch<{
+          valid: boolean;
+          available: boolean;
+          canChange: boolean;
+          cooldownDaysRemaining: number;
+          current?: boolean;
+          message?: string;
+        }>(`/api/users/username-availability?username=${encodeURIComponent(requestUsername)}`);
+
+        if (latestUsernameRef.current !== requestUsername) {
+          return;
+        }
+
+        if (!data.valid) {
+          setUsernameStatus({
+            state: 'invalid',
+            message: data.message || 'Username is invalid.',
+            daysRemaining: 0,
+            canChange: false,
+            lastChecked: normalizedUsername,
+          });
+          return;
+        }
+
+        if (!data.available) {
+          setUsernameStatus({
+            state: 'taken',
+            message: 'Username is already taken.',
+            daysRemaining: 0,
+            canChange: false,
+            lastChecked: normalizedUsername,
+          });
+          return;
+        }
+
+        if (isUsernameChanged && !data.canChange) {
+          setUsernameStatus({
+            state: 'cooldown',
+            message: `You can change your username again in ${data.cooldownDaysRemaining} day${data.cooldownDaysRemaining === 1 ? '' : 's'}.`,
+            daysRemaining: data.cooldownDaysRemaining || 0,
+            canChange: false,
+            lastChecked: normalizedUsername,
+          });
+          return;
+        }
+
+        setUsernameStatus({
+          state: 'available',
+          message: isUsernameChanged ? 'Username is available.' : '',
+          daysRemaining: data.cooldownDaysRemaining || 0,
+          canChange: true,
+          lastChecked: normalizedUsername,
+        });
+      } catch {
+        if (latestUsernameRef.current !== requestUsername) {
+          return;
+        }
+        setUsernameStatus({
+          state: 'idle',
+          message: '',
+          daysRemaining: 0,
+          canChange: false,
+          lastChecked: '',
+        });
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [normalizedUsername, isUsernameValid, isUsernameChanged, user]);
+
+  const canSaveUsername = !isUsernameChanged
+    || (usernameStatus.state === 'available'
+      && usernameStatus.canChange
+      && usernameStatus.lastChecked === normalizedUsername);
+  const canSaveChanges = isEmailChanged || (isUsernameChanged && canSaveUsername);
 
   const handleSave = async () => {
+    if (!canSaveChanges) {
+      toast({
+        title: 'Nothing to save',
+        description: usernameStatus.message || 'Please update your details before saving.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      updateUser({ username: formData.username, email: formData.email });
+      const updates: { username?: string; email?: string } = {};
+      if (isEmailChanged) {
+        updates.email = formData.email;
+      }
+      if (isUsernameChanged && canSaveUsername) {
+        updates.username = formData.username;
+      }
+      await updateUser(updates);
       toast({
         title: 'Profile updated',
         description: 'Your changes have been saved.',
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please try again.';
       toast({
         title: 'Update failed',
-        description: 'Please try again.',
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -81,7 +230,7 @@ const Profile = () => {
             <h1 className="text-lg font-semibold text-foreground">Settings</h1>
             <p className="text-sm text-muted-foreground">Manage your account</p>
           </div>
-          <Button onClick={handleSave} disabled={isLoading}>
+          <Button onClick={handleSave} disabled={isLoading || !canSaveChanges}>
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -114,7 +263,7 @@ const Profile = () => {
               </button>
             </div>
             <div className="flex-1">
-              <p className="font-medium text-foreground">{user?.username}</p>
+              <p className="font-medium text-foreground">{user?.username ? `@${user.username}` : ''}</p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
               <p className="text-sm text-status-online mt-1 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-status-online" />
@@ -132,13 +281,30 @@ const Profile = () => {
           </h2>
 
           <div className="space-y-2">
-            <Label htmlFor="username">Display Name</Label>
-            <Input
-              id="username"
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              placeholder="Your name"
-            />
+            <Label htmlFor="username">Username</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+              <Input
+                id="username"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="your_username"
+                className="pl-7"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              One word, 3-30 chars. Letters, numbers, . or _. Change once every 7 days.
+            </p>
+            {usernameStatus.state === 'cooldown' && usernameStatus.daysRemaining > 0 && (
+              <p className="text-xs text-destructive">
+                {`Username changes are locked for ${usernameStatus.daysRemaining} more day${usernameStatus.daysRemaining === 1 ? '' : 's'}.`}
+              </p>
+            )}
+            {(usernameStatus.state === 'checking' || usernameStatus.message) && (
+              <p className={`text-xs ${usernameStatus.state === 'available' ? 'text-status-online' : 'text-destructive'}`}>
+                {usernameStatus.state === 'checking' ? 'Checking availability...' : usernameStatus.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

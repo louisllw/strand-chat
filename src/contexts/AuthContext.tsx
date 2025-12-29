@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { User, AuthState } from '@/types';
+import { apiFetch } from '@/lib/api';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useSocket } from '@/contexts/SocketContext';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
@@ -10,101 +13,131 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for demo purposes
-const mockUser: User = {
-  id: '1',
-  username: 'John Doe',
-  email: 'john@example.com',
-  avatar: undefined,
-  status: 'online',
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { setTheme } = useTheme();
+  const { isConnected, presenceStatus } = useSocket();
   const [state, setState] = useState<AuthState>({
     user: null,
-    token: null,
     isAuthenticated: false,
     isLoading: true,
   });
 
   useEffect(() => {
-    // Check for stored token on mount
-    const token = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
-    
-    if (token && storedUser) {
-      setState({
-        user: JSON.parse(storedUser),
-        token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
-  }, []);
+    const loadSession = async () => {
+      try {
+        const data = await apiFetch<{ user: User }>('/api/auth/me');
+        setState({
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        if (data.user.theme) {
+          setTheme(data.user.theme);
+        }
+      } catch {
+        setState(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+    loadSession();
+  }, [setTheme]);
+
+  useEffect(() => {
+    if (!state.isAuthenticated) return;
+    let isMounted = true;
+    const refreshSession = async () => {
+      try {
+        const data = await apiFetch<{ user: User }>('/api/auth/me');
+        if (!isMounted) return;
+        setState(prev => ({
+          ...prev,
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+        }));
+        if (data.user.theme) {
+          setTheme(data.user.theme);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    refreshSession();
+    const intervalId = window.setInterval(refreshSession, 30000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [state.isAuthenticated, isConnected, setTheme]);
+
+  useEffect(() => {
+    if (!state.isAuthenticated || !state.user) return;
+    if (state.user.status === presenceStatus) return;
+    setState(prev => ({
+      ...prev,
+      user: {
+        ...prev.user!,
+        status: presenceStatus,
+      },
+    }));
+  }, [presenceStatus, state.isAuthenticated, state.user]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // Simulate API call - replace with actual backend integration
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const token = 'mock_jwt_token_' + Date.now();
-    const user = { ...mockUser, email };
-    
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
-    
+    const data = await apiFetch<{ user: User }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
     setState({
-      user,
-      token,
+      user: data.user,
       isAuthenticated: true,
       isLoading: false,
     });
-  }, []);
+    if (data.user.theme) {
+      setTheme(data.user.theme);
+    }
+  }, [setTheme]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
-    // Simulate API call - replace with actual backend integration
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const token = 'mock_jwt_token_' + Date.now();
-    const user: User = {
-      id: Date.now().toString(),
-      username,
-      email,
-      status: 'online',
-    };
-    
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
-    
+    const data = await apiFetch<{ user: User }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password }),
+    });
+
     setState({
-      user,
-      token,
+      user: data.user,
       isAuthenticated: true,
       isLoading: false,
     });
-  }, []);
+    if (data.user.theme) {
+      setTheme(data.user.theme);
+    }
+  }, [setTheme]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    
+  const logout = useCallback(async () => {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore network errors and clear local state anyway.
+    }
     setState({
       user: null,
-      token: null,
       isAuthenticated: false,
       isLoading: false,
     });
   }, []);
 
-  const updateUser = useCallback((updates: Partial<User>) => {
-    setState(prev => {
-      if (!prev.user) return prev;
-      const updatedUser = { ...prev.user, ...updates };
-      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
-      return { ...prev, user: updatedUser };
+  const updateUser = useCallback(async (updates: Partial<User>) => {
+    if (!state.user) return;
+    const data = await apiFetch<{ user: User }>('/api/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
     });
-  }, []);
+    setState(prev => ({ ...prev, user: data.user }));
+    if (data.user.theme) {
+      setTheme(data.user.theme);
+    }
+  }, [state.user, setTheme]);
 
   return (
     <AuthContext.Provider value={{ ...state, login, register, logout, updateUser }}>

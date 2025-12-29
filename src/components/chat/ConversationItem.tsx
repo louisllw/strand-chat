@@ -28,11 +28,14 @@ const formatTime = (date: Date) => {
 export const ConversationItem = ({ conversation, isActive, onClick }: ConversationItemProps) => {
   const displayName = conversation.type === 'group'
     ? conversation.name
-    : conversation.participants[0]?.username;
+    : conversation.participants[0]?.username
+    ? `@${conversation.participants[0].username}`
+    : undefined;
 
   const displayStatus = conversation.type === 'direct'
     ? conversation.participants[0]?.status
     : undefined;
+  const lastSeen = conversation.participants[0]?.lastSeen || conversation.updatedAt;
 
   return (
     <button
@@ -70,10 +73,16 @@ export const ConversationItem = ({ conversation, isActive, onClick }: Conversati
           <p className="text-sm text-muted-foreground truncate">
             {conversation.lastMessage?.content || 'No messages yet'}
           </p>
-          {conversation.unreadCount > 0 && (
+          {conversation.unreadCount > 0 ? (
             <span className="flex-shrink-0 h-5 min-w-5 px-1.5 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
               {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
             </span>
+          ) : (
+            displayStatus && lastSeen && (
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                {`Last seen ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              </span>
+            )
           )}
         </div>
       </div>
