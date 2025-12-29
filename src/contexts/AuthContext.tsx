@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { User, AuthState } from '@/types';
 import { apiFetch } from '@/lib/api';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,6 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: false,
     isLoading: true,
   });
+  const isRefreshingRef = useRef(false);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -45,6 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!state.isAuthenticated) return;
     let isMounted = true;
     const refreshSession = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
       try {
         const data = await apiFetch<{ user: User }>('/api/auth/me');
         if (!isMounted) return;
@@ -58,15 +62,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTheme(data.user.theme);
         }
       } catch {
-        // ignore polling errors
+        // ignore refresh errors
+      } finally {
+        isRefreshingRef.current = false;
       }
     };
 
     refreshSession();
-    const intervalId = window.setInterval(refreshSession, 30000);
+    window.addEventListener('focus', refreshSession);
+    document.addEventListener('visibilitychange', refreshSession);
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshSession);
+      document.removeEventListener('visibilitychange', refreshSession);
     };
   }, [state.isAuthenticated, isConnected, setTheme]);
 

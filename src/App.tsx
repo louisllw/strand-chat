@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import Profile from "./pages/Profile";
+import UserProfile from "./pages/UserProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +24,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="fixed inset-0 flex items-center justify-center bg-background overflow-hidden">
         <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
           <span className="text-primary-foreground text-xl">M</span>
         </div>
@@ -40,7 +41,7 @@ const GuestRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="fixed inset-0 flex items-center justify-center bg-background overflow-hidden">
         <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
           <span className="text-primary-foreground text-xl">M</span>
         </div>
@@ -75,9 +76,7 @@ const AppRoutes = () => {
         path="/chat"
         element={
           <ProtectedRoute>
-            <ChatProvider>
-              <Chat />
-            </ChatProvider>
+            <Chat />
           </ProtectedRoute>
         }
       />
@@ -86,6 +85,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users/:id"
+        element={
+          <ProtectedRoute>
+            <UserProfile />
           </ProtectedRoute>
         }
       />
@@ -99,13 +106,15 @@ const App = () => (
     <ThemeProvider>
       <SocketProvider>
         <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
+          <ChatProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </ChatProvider>
         </AuthProvider>
       </SocketProvider>
     </ThemeProvider>

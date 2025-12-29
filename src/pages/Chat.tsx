@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { MessageList } from '@/components/chat/MessageList';
@@ -10,8 +10,15 @@ const Chat = () => {
   const { activeConversation } = useChat();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    document.body.classList.add('chat-locked');
+    return () => {
+      document.body.classList.remove('chat-locked');
+    };
+  }, []);
+
   return (
-    <div className="h-screen flex bg-background">
+    <div className="fixed left-0 top-0 w-full h-[100dvh] flex bg-background overflow-hidden overscroll-contain">
       {/* Sidebar */}
       <ChatSidebar 
         isMobileOpen={isSidebarOpen}

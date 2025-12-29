@@ -125,13 +125,15 @@ export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) =
 
       <aside
         className={cn(
-          'fixed lg:relative inset-y-0 left-0 z-50 w-80 bg-card border-r border-border flex flex-col transition-transform duration-300 lg:translate-x-0',
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed lg:relative inset-y-0 left-0 z-50 w-72 sm:w-80 bg-card border-r border-border flex flex-col transition-transform duration-300 lg:translate-x-0',
+          isMobileOpen
+            ? 'translate-x-0 pointer-events-auto'
+            : 'hidden -translate-x-full pointer-events-none lg:pointer-events-auto lg:translate-x-0 lg:flex'
         )}
       >
         {/* Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-3 sm:p-4 border-b border-border">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h1 className="text-xl font-semibold text-foreground">Messages</h1>
             <div className="flex items-center gap-1">
               <Button variant="icon" size="iconSm" onClick={toggleTheme}>

@@ -1,11 +1,10 @@
 import { useChat } from '@/contexts/ChatContext';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserAvatar } from './UserAvatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-  Phone,
-  Video,
   MoreVertical,
   Users,
   ArrowLeft,
@@ -26,6 +25,7 @@ interface ChatHeaderProps {
 
 export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) => {
   const { activeConversation, typingIndicators, deleteConversation, addGroupMembers, leaveGroup } = useChat();
+  const navigate = useNavigate();
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [newMembers, setNewMembers] = useState('');
   const [isAddingMembers, setIsAddingMembers] = useState(false);
@@ -61,8 +61,9 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
     ? 'Away'
     : 'Offline';
 
-  const participantCount = activeConversation.participants.length;
+  const participantCount = activeConversation.participantCount ?? activeConversation.participants.length;
   const isGroup = activeConversation.type === 'group';
+  const profileUser = !isGroup ? activeConversation.participants[0] : null;
 
   const handleAddMembers = async () => {
     if (!activeConversation || !isGroup) return;
@@ -83,9 +84,9 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
   };
 
   return (
-    <header className={cn('bg-card border-b border-border px-4 py-3', className)}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <header className={cn('sticky top-0 z-20 bg-card border-b border-border px-3 py-2 sm:px-4 sm:py-3', className)}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Mobile back button */}
           <Button 
             variant="icon" 
@@ -93,13 +94,13 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
             className="lg:hidden"
             onClick={onMobileMenuClick}
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
 
           {/* Avatar */}
           {activeConversation.type === 'group' ? (
-            <div className="relative h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Users className="h-5 w-5" />
+            <div className="relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           ) : (
             <UserAvatar
@@ -110,9 +111,9 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
           )}
 
           {/* Info */}
-          <div>
-            <h2 className="font-semibold text-foreground">{displayName}</h2>
-            <p className="text-sm text-muted-foreground">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-foreground truncate">{displayName}</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
               {activeConversation.type === 'group' 
                 ? `${participantCount} members`
                 : statusText
@@ -123,24 +124,25 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          <Button variant="icon" size="icon">
-            <Phone className="h-5 w-5" />
-          </Button>
-          <Button variant="icon" size="icon">
-            <Video className="h-5 w-5" />
-          </Button>
-          <Button variant="icon" size="icon">
-            <Info className="h-5 w-5" />
-          </Button>
+          {profileUser ? (
+            <Button
+              variant="icon"
+              size="icon"
+              className="h-9 w-9 sm:h-10 sm:w-10"
+              onClick={() => navigate(`/users/${profileUser.id}`)}
+            >
+              <Info className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          ) : null}
           {isGroup ? (
             <>
-              <Button variant="icon" size="icon" onClick={() => setShowAddMembers(true)}>
-                <UserPlus className="h-5 w-5" />
+              <Button variant="icon" size="icon" className="h-9 w-9 sm:h-10 sm:w-10" onClick={() => setShowAddMembers(true)}>
+                <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="icon" size="icon">
-                    <LogOut className="h-5 w-5" />
+                  <Button variant="icon" size="icon" className="h-9 w-9 sm:h-10 sm:w-10">
+                    <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -162,8 +164,8 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
           ) : null}
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="icon" size="icon">
-                <Trash2 className="h-5 w-5" />
+              <Button variant="icon" size="icon" className="h-9 w-9 sm:h-10 sm:w-10">
+                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -181,8 +183,8 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <Button variant="icon" size="icon">
-            <MoreVertical className="h-5 w-5" />
+          <Button variant="icon" size="icon" className="h-9 w-9 sm:h-10 sm:w-10 hidden sm:inline-flex">
+            <MoreVertical className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
         </div>
       </div>

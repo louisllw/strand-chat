@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
@@ -11,23 +11,57 @@ interface MessageListProps {
 }
 
 export const MessageList = ({ className }: MessageListProps) => {
-  const { messages, typingIndicators, activeConversation, setReplyToMessage, toggleReaction } = useChat();
+  const {
+    messages,
+    typingIndicators,
+    activeConversation,
+    setReplyToMessage,
+    toggleReaction,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingOlder,
+  } = useChat();
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
   const isAtBottomRef = useRef(true);
+  const isPrependingRef = useRef(false);
+  const isAutoScrollingRef = useRef(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const loadOlder = async () => {
+    if (!containerRef.current || isLoadingOlder || !hasMoreMessages) return;
+    const container = containerRef.current;
+    const prevScrollHeight = container.scrollHeight;
+    const prevScrollTop = container.scrollTop;
+    isPrependingRef.current = true;
+    const loaded = await loadOlderMessages();
+    if (loaded > 0) {
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        const nextScrollHeight = containerRef.current.scrollHeight;
+        const nextTop = prevScrollTop + (nextScrollHeight - prevScrollHeight);
+        const maxTop = Math.max(0, nextScrollHeight - containerRef.current.clientHeight);
+        containerRef.current.scrollTop = Math.min(nextTop, maxTop);
+      });
+    }
+    isPrependingRef.current = false;
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   const updateScrollState = () => {
     const el = containerRef.current;
     if (!el) return;
+    if (el.scrollTop < 120 && !isAutoScrollingRef.current) {
+      loadOlder();
+    }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const isAtBottom = distanceFromBottom < 80;
     isAtBottomRef.current = isAtBottom;
@@ -47,13 +81,26 @@ export const MessageList = ({ className }: MessageListProps) => {
   };
 
   useEffect(() => {
+    if (isPrependingRef.current) return;
     if (isAtBottomRef.current) {
-      scrollToBottom();
+      isAutoScrollingRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+        requestAnimationFrame(() => {
+          isAutoScrollingRef.current = false;
+        });
+      });
     } else {
       setShowNewMessageIndicator(true);
       setUnseenCount(prev => prev + 1);
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!activeConversation) {
+      setSelectedMessageId(null);
+    }
+  }, [activeConversation]);
 
   useEffect(() => {
     updateScrollState();
@@ -62,14 +109,16 @@ export const MessageList = ({ className }: MessageListProps) => {
   const currentUserId = user?.id;
 
   // Group messages by date
-  const groupedMessages = messages.reduce((groups, message) => {
-    const dateKey = message.timestamp.toDateString();
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
-    }
-    groups[dateKey].push(message);
-    return groups;
-  }, {} as Record<string, typeof messages>);
+  const groupedMessages = useMemo(() => (
+    messages.reduce((groups, message) => {
+      const dateKey = message.timestamp.toDateString();
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(message);
+      return groups;
+    }, {} as Record<string, typeof messages>)
+  ), [messages]);
 
   const formatDateHeader = (dateString: string) => {
     const date = new Date(dateString);
@@ -99,9 +148,22 @@ export const MessageList = ({ className }: MessageListProps) => {
       <div
         ref={containerRef}
         onScroll={updateScrollState}
-        className="h-full overflow-y-auto p-4"
+        className="h-full overflow-y-auto overscroll-contain touch-pan-y p-3 sm:p-4 pb-28 sm:pb-28"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+        {hasMoreMessages && (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadOlder}
+              disabled={isLoadingOlder}
+            >
+              {isLoadingOlder ? 'Loading...' : 'Load earlier messages'}
+            </Button>
+          </div>
+        )}
         {Object.entries(groupedMessages).map(([dateKey, msgs]) => (
           <div key={dateKey} className="space-y-3">
             {/* Date separator */}
@@ -118,7 +180,11 @@ export const MessageList = ({ className }: MessageListProps) => {
               const sender = activeConversation?.participants.find(
                 p => p.id === message.senderId
               );
-              const senderName = sender?.username ? `@${sender.username}` : undefined;
+              const senderName = message.senderUsername
+                ? `@${message.senderUsername}`
+                : sender?.username
+                ? `@${sender.username}`
+                : undefined;
 
               return (
                 <div
@@ -135,6 +201,10 @@ export const MessageList = ({ className }: MessageListProps) => {
                     onJumpToMessage={jumpToMessage}
                     isHighlighted={highlightMessageId === message.id}
                     onToggleReaction={toggleReaction}
+                    isSelected={selectedMessageId === message.id}
+                    onSelect={(messageId) => {
+                      setSelectedMessageId(prev => (prev === messageId ? null : messageId));
+                    }}
                   />
                 </div>
               );
@@ -157,7 +227,7 @@ export const MessageList = ({ className }: MessageListProps) => {
 
       {showNewMessageIndicator && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2">
-          <Button onClick={scrollToBottom} size="sm" className="pointer-events-auto shadow-md">
+          <Button onClick={() => scrollToBottom('smooth')} size="sm" className="pointer-events-auto shadow-md">
             {unseenCount > 0 ? `${unseenCount} new message${unseenCount === 1 ? '' : 's'} · Back to chat` : 'Back to chat'}
           </Button>
         </div>

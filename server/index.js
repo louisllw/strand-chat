@@ -43,6 +43,12 @@ const createSystemMessage = async (conversationId, senderId, content) => {
      returning id`,
     [conversationId, senderId, content]
   );
+  await query(
+    `update conversation_members
+     set unread_count = unread_count + 1
+     where conversation_id = $1 and user_id <> $2`,
+    [conversationId, senderId]
+  );
   await query('update conversations set updated_at = now() where id = $1', [conversationId]);
   const messageResult = await query(
     `select
@@ -96,7 +102,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '30mb' }));
 app.use(cookieParser());
 
 const getUserFromRequest = (req) => {
@@ -123,6 +129,17 @@ const mapUser = (row) => ({
   username: row.username,
   email: row.email,
   avatar: row.avatar_url || null,
+  banner: row.banner_url || null,
+  phone: row.phone || null,
+  bio: row.bio || null,
+  website: row.website_url || null,
+  socialX: row.social_x || null,
+  socialInstagram: row.social_instagram || null,
+  socialLinkedin: row.social_linkedin || null,
+  socialTiktok: row.social_tiktok || null,
+  socialYoutube: row.social_youtube || null,
+  socialFacebook: row.social_facebook || null,
+  socialGithub: row.social_github || null,
   status: row.status || 'offline',
   theme: row.theme || 'light',
   lastSeen: row.last_seen || row.updated_at || null,
@@ -159,7 +176,9 @@ app.post('/api/auth/register', authRateLimiter, async (req, res) => {
   const result = await query(
     `insert into users (username, email, password_hash, status, last_seen)
      values ($1, $2, $3, 'offline', now())
-     returning id, username, email, avatar_url, status, theme, last_seen`,
+     returning id, username, email, avatar_url, banner_url, phone, bio, website_url,
+               social_x, social_instagram, social_linkedin, social_tiktok, social_youtube,
+               social_facebook, social_github, status, theme, last_seen, created_at`,
     [normalizedUsername, email.toLowerCase(), passwordHash]
   );
 
@@ -176,7 +195,10 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   }
 
   const result = await query(
-    'select id, username, email, avatar_url, status, theme, password_hash from users where email = $1',
+    `select id, username, email, avatar_url, banner_url, phone, bio, website_url,
+            social_x, social_instagram, social_linkedin, social_tiktok, social_youtube,
+            social_facebook, social_github, status, theme, password_hash, created_at
+     from users where email = $1`,
     [email.toLowerCase()]
   );
   if (result.rowCount === 0) {
@@ -206,13 +228,19 @@ app.post('/api/auth/logout', requireAuth, async (req, res) => {
 });
 
 app.get('/api/auth/me', requireAuth, async (req, res) => {
+  const start = process.hrtime.bigint();
   const result = await query(
-    'select id, username, email, avatar_url, status, theme, last_seen, updated_at from users where id = $1',
+    `select id, username, email, avatar_url, banner_url, phone, bio, website_url,
+            social_x, social_instagram, social_linkedin, social_tiktok, social_youtube,
+            social_facebook, social_github, status, theme, last_seen, updated_at, created_at
+     from users where id = $1`,
     [req.user.userId]
   );
   if (result.rowCount === 0) {
     return res.status(404).json({ error: 'User not found' });
   }
+  const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+  console.log(`[perf] /api/auth/me ${req.user.userId} ${durationMs.toFixed(1)}ms`);
   res.json({ user: mapUser(result.rows[0]) });
 });
 
@@ -282,7 +310,24 @@ app.get('/api/users/username-availability', requireAuth, async (req, res) => {
 });
 
 app.patch('/api/users/me', requireAuth, async (req, res) => {
-  const { username, email, avatar, status, theme } = req.body || {};
+  const {
+    username,
+    email,
+    avatar,
+    banner,
+    status,
+    theme,
+    phone,
+    bio,
+    website,
+    socialX,
+    socialInstagram,
+    socialLinkedin,
+    socialTiktok,
+    socialYoutube,
+    socialFacebook,
+    socialGithub,
+  } = req.body || {};
   const updates = [];
   const values = [];
   let idx = 1;
@@ -339,8 +384,64 @@ app.patch('/api/users/me', requireAuth, async (req, res) => {
     values.push(email.toLowerCase());
   }
   if (avatar !== undefined) {
+    const normalizedAvatar = String(avatar || '').trim();
     updates.push(`avatar_url = $${idx++}`);
-    values.push(avatar);
+    values.push(normalizedAvatar.length > 0 ? normalizedAvatar : null);
+  }
+  if (banner !== undefined) {
+    const normalizedBanner = String(banner || '').trim();
+    updates.push(`banner_url = $${idx++}`);
+    values.push(normalizedBanner.length > 0 ? normalizedBanner : null);
+  }
+  if (phone !== undefined) {
+    const normalizedPhone = String(phone || '').trim();
+    updates.push(`phone = $${idx++}`);
+    values.push(normalizedPhone.length > 0 ? normalizedPhone : null);
+  }
+  if (bio !== undefined) {
+    const normalizedBio = String(bio || '').trim();
+    updates.push(`bio = $${idx++}`);
+    values.push(normalizedBio.length > 0 ? normalizedBio : null);
+  }
+  if (website !== undefined) {
+    const normalizedWebsite = String(website || '').trim();
+    updates.push(`website_url = $${idx++}`);
+    values.push(normalizedWebsite.length > 0 ? normalizedWebsite : null);
+  }
+  if (socialX !== undefined) {
+    const normalized = String(socialX || '').trim();
+    updates.push(`social_x = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialInstagram !== undefined) {
+    const normalized = String(socialInstagram || '').trim();
+    updates.push(`social_instagram = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialLinkedin !== undefined) {
+    const normalized = String(socialLinkedin || '').trim();
+    updates.push(`social_linkedin = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialTiktok !== undefined) {
+    const normalized = String(socialTiktok || '').trim();
+    updates.push(`social_tiktok = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialYoutube !== undefined) {
+    const normalized = String(socialYoutube || '').trim();
+    updates.push(`social_youtube = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialFacebook !== undefined) {
+    const normalized = String(socialFacebook || '').trim();
+    updates.push(`social_facebook = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
+  }
+  if (socialGithub !== undefined) {
+    const normalized = String(socialGithub || '').trim();
+    updates.push(`social_github = $${idx++}`);
+    values.push(normalized.length > 0 ? normalized : null);
   }
   if (status) {
     updates.push(`status = $${idx++}`);
@@ -359,7 +460,9 @@ app.patch('/api/users/me', requireAuth, async (req, res) => {
   const result = await query(
     `update users set ${updates.join(', ')}, updated_at = now()
      where id = $${idx}
-     returning id, username, email, avatar_url, status, theme, last_seen`,
+     returning id, username, email, avatar_url, banner_url, phone, bio, website_url,
+               social_x, social_instagram, social_linkedin, social_tiktok, social_youtube,
+               social_facebook, social_github, status, theme, last_seen, created_at`,
     values
   );
 
@@ -367,6 +470,7 @@ app.patch('/api/users/me', requireAuth, async (req, res) => {
 });
 
 app.get('/api/conversations', requireAuth, async (req, res) => {
+  const start = process.hrtime.bigint();
   const userId = req.user.userId;
   const result = await query(
     `select
@@ -375,36 +479,35 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
        c.type,
        c.created_at,
        c.updated_at,
-       p.participants as participants,
+       ou.other_user as other_user,
+       pc.participant_count as participant_count,
        lm.last_message as last_message,
-       (
-         select count(*)
-         from messages m
-         left join message_reads mr
-           on mr.message_id = m.id and mr.user_id = $1
-         where m.conversation_id = c.id
-           and m.sender_id <> $1
-           and mr.message_id is null
-           and (cm.cleared_at is null or m.created_at > cm.cleared_at)
-       ) as unread_count
+       cm.unread_count as unread_count
      from conversations c
      join conversation_members cm on cm.conversation_id = c.id
      left join lateral (
-       select json_agg(
-         json_build_object(
-           'id', u.id,
-           'username', u.username,
-           'email', u.email,
-           'avatar', u.avatar_url,
-           'status', u.status,
-           'lastSeen', coalesce(u.last_seen, u.updated_at)
-         )
-         order by (u.id = $1), u.username
-       ) as participants
+       select json_build_object(
+         'id', u.id,
+         'username', u.username,
+         'email', u.email,
+         'avatar', u.avatar_url,
+         'status', u.status,
+         'lastSeen', coalesce(u.last_seen, u.updated_at)
+       ) as other_user
        from conversation_members cm2
        join users u on u.id = cm2.user_id
        where cm2.conversation_id = c.id
-     ) p on true
+         and c.type = 'direct'
+         and u.id <> $1
+       order by u.username
+       limit 1
+     ) ou on true
+     left join lateral (
+       select count(*)::int as participant_count
+       from conversation_members cm3
+       where cm3.conversation_id = c.id
+         and cm3.hidden_at is null
+     ) pc on true
      left join lateral (
        select json_build_object(
          'id', m.id,
@@ -427,12 +530,15 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
      order by coalesce(lm.last_message_created_at, c.updated_at) desc`,
     [userId]
   );
+  const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+  console.log(`[perf] /api/conversations ${userId} ${durationMs.toFixed(1)}ms`);
 
   const conversations = result.rows.map((row) => ({
     id: row.id,
     name: row.name,
     type: row.type,
-    participants: row.participants || [],
+    participants: row.other_user ? [row.other_user] : [],
+    participantCount: Number(row.participant_count || 0),
     lastMessage: row.last_message || null,
     unreadCount: Number(row.unread_count || 0),
     createdAt: row.created_at,
@@ -445,7 +551,9 @@ app.get('/api/conversations', requireAuth, async (req, res) => {
 app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
   const userId = req.user.userId;
   const conversationId = req.params.id;
-  const limit = Math.min(Number(req.query.limit || 200), 500);
+  const limit = Math.min(Number(req.query.limit || 50), 500);
+  const beforeParam = typeof req.query.before === 'string' ? req.query.before : null;
+  const before = beforeParam && !Number.isNaN(Date.parse(beforeParam)) ? beforeParam : null;
 
   const membership = await query(
     `select cleared_at
@@ -467,6 +575,7 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
        m.conversation_id,
        m.created_at,
        m.type,
+       su.username as sender_username,
        m.attachment_url,
        rm.id as reply_id,
        rm.content as reply_content,
@@ -477,9 +586,11 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
        from messages
        where conversation_id = $1
          and ($4::timestamptz is null or created_at > $4)
+         and ($5::timestamptz is null or created_at < $5)
        order by created_at desc
        limit $3
      ) m
+     left join users su on su.id = m.sender_id
      left join messages rm on rm.id = m.reply_to_id
      left join lateral (
        select json_agg(
@@ -497,13 +608,14 @@ app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
        ) reactions_summary
      ) rx on true
      order by m.created_at asc`,
-    [conversationId, userId, limit, clearedAt]
+    [conversationId, userId, limit, clearedAt, before]
   );
 
   const messages = result.rows.map((row) => ({
     id: row.id,
     content: row.content,
     senderId: row.sender_id,
+    senderUsername: row.sender_username || null,
     conversationId: row.conversation_id,
     timestamp: row.created_at,
     read: false,
@@ -554,6 +666,12 @@ app.post('/api/conversations/:id/messages', requireAuth, async (req, res) => {
      returning id`,
     [conversationId, userId, content, type, attachmentUrl || null, replyToId || null]
   );
+  await query(
+    `update conversation_members
+     set unread_count = unread_count + 1
+     where conversation_id = $1 and user_id <> $2`,
+    [conversationId, userId]
+  );
   await query('update conversations set updated_at = now() where id = $1', [conversationId]);
 
   const messageResult = await query(
@@ -564,13 +682,15 @@ app.post('/api/conversations/:id/messages', requireAuth, async (req, res) => {
        m.conversation_id,
        m.created_at,
        m.type,
+       su.username as sender_username,
        m.attachment_url,
-       rm.id as reply_id,
-       rm.content as reply_content,
-       rm.sender_id as reply_sender_id
-     from messages m
-     left join messages rm on rm.id = m.reply_to_id
-     where m.id = $1`,
+     rm.id as reply_id,
+     rm.content as reply_content,
+     rm.sender_id as reply_sender_id
+    from messages m
+    join users su on su.id = m.sender_id
+    left join messages rm on rm.id = m.reply_to_id
+    where m.id = $1`,
     [insertResult.rows[0].id]
   );
   await query(
@@ -622,12 +742,9 @@ app.post('/api/conversations/:id/read', requireAuth, async (req, res) => {
   }
 
   await query(
-    `insert into message_reads (message_id, user_id)
-     select m.id, $2
-     from messages m
-     where m.conversation_id = $1
-       and m.sender_id <> $2
-     on conflict (message_id, user_id) do nothing`,
+    `update conversation_members
+     set unread_count = 0
+     where conversation_id = $1 and user_id = $2`,
     [conversationId, userId]
   );
 
@@ -829,7 +946,7 @@ app.delete('/api/conversations/:id', requireAuth, async (req, res) => {
   }
 
   await query(
-    'update conversation_members set hidden_at = now(), cleared_at = now() where conversation_id = $1 and user_id = $2',
+    'update conversation_members set hidden_at = now(), cleared_at = now(), unread_count = 0 where conversation_id = $1 and user_id = $2',
     [conversationId, userId]
   );
 
@@ -1055,6 +1172,43 @@ app.post('/api/users/me/emoji-recents', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/users/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const result = await query(
+    `select id, username, avatar_url, banner_url, phone, bio, website_url,
+            social_x, social_instagram, social_linkedin, social_tiktok, social_youtube,
+            social_facebook, social_github, status, last_seen, created_at
+     from users
+     where id = $1`,
+    [id]
+  );
+  if (result.rowCount === 0) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const row = result.rows[0];
+  res.json({
+    user: {
+      id: row.id,
+      username: row.username,
+      avatar: row.avatar_url || null,
+      banner: row.banner_url || null,
+      phone: row.phone || null,
+      bio: row.bio || null,
+      website: row.website_url || null,
+      socialX: row.social_x || null,
+      socialInstagram: row.social_instagram || null,
+      socialLinkedin: row.social_linkedin || null,
+      socialTiktok: row.social_tiktok || null,
+      socialYoutube: row.social_youtube || null,
+      socialFacebook: row.social_facebook || null,
+      socialGithub: row.social_github || null,
+      status: row.status || 'offline',
+      lastSeen: row.last_seen || null,
+      createdAt: row.created_at || null,
+    },
+  });
+});
+
 const parseCookie = (cookieHeader) => {
   if (!cookieHeader) return {};
   return cookieHeader.split(';').reduce((acc, part) => {
@@ -1149,6 +1303,12 @@ io.on('connection', async (socket) => {
        returning id`,
       [conversationId, userId, content, type, attachmentUrl || null, replyToId || null]
     );
+    await query(
+      `update conversation_members
+       set unread_count = unread_count + 1
+       where conversation_id = $1 and user_id <> $2`,
+      [conversationId, userId]
+    );
     await query('update conversations set updated_at = now() where id = $1', [conversationId]);
 
     const messageResult = await query(
@@ -1160,10 +1320,12 @@ io.on('connection', async (socket) => {
          m.created_at,
          m.type,
          m.attachment_url,
+         u.username as sender_username,
          rm.id as reply_id,
          rm.content as reply_content,
          rm.sender_id as reply_sender_id
        from messages m
+       join users u on u.id = m.sender_id
        left join messages rm on rm.id = m.reply_to_id
        where m.id = $1`,
       [insertResult.rows[0].id]
@@ -1184,6 +1346,7 @@ io.on('connection', async (socket) => {
       id: row.id,
       content: row.content,
       senderId: row.sender_id,
+      senderUsername: row.sender_username || null,
       conversationId: row.conversation_id,
       timestamp: row.created_at,
       read: false,

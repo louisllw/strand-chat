@@ -4,6 +4,15 @@
 
 Self-hosted real-time chat with Postgres + Socket.IO.
 
+## Features
+
+- Direct + group conversations
+- Reactions, replies, typing indicators, presence
+- Profiles with avatar/banner, bio, socials, website
+- Profile image cropping + client-side resize before upload
+- Message pagination (load newest, fetch older on demand)
+- Unread counters cached per conversation
+
 ## Step-by-step quick start (self-hosted)
 
 Requirements:
@@ -93,6 +102,15 @@ Copy `server/.env.example` to `server/.env` and update:
 - `JWT_SECRET`: random string used to sign login tokens (keep it private)
 - `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs, e.g. `http://localhost:8080,http://192.168.1.168:8080`
 - `PORT`: defaults to `3001`
+- `LOG_DB_TIMINGS`: set to `true` to log per-query timings
+
+Server JSON payload limit is 30 MB (`server/index.js`).
+
+## Images and storage
+
+- Profile avatar/banner fields store a URL or a data URL string in the `users` table.
+- Uploading an image in settings performs client-side cropping and resizing, then saves the data URL.
+- If you want to host media externally, replace the stored value with your CDN/storage URL.
 
 ## Common setup issues
 
@@ -111,6 +129,31 @@ alter table conversation_members add column if not exists cleared_at timestamptz
 update conversation_members
 set cleared_at = hidden_at
 where cleared_at is null and hidden_at is not null;
+
+alter table conversation_members add column if not exists unread_count int not null default 0;
+update conversation_members cm
+set unread_count = sub.unread_count
+from (
+  select m.conversation_id, m.user_id, count(*)::int as unread_count
+  from messages m
+  join conversation_members cm2 on cm2.conversation_id = m.conversation_id
+  where cm2.user_id = m.user_id
+    and cm2.hidden_at is null
+  group by m.conversation_id, m.user_id
+) sub
+where cm.conversation_id = sub.conversation_id and cm.user_id = sub.user_id;
+
+alter table users add column if not exists phone text;
+alter table users add column if not exists bio text;
+alter table users add column if not exists banner_url text;
+alter table users add column if not exists website_url text;
+alter table users add column if not exists social_x text;
+alter table users add column if not exists social_instagram text;
+alter table users add column if not exists social_linkedin text;
+alter table users add column if not exists social_tiktok text;
+alter table users add column if not exists social_youtube text;
+alter table users add column if not exists social_facebook text;
+alter table users add column if not exists social_github text;
 
 alter table messages drop constraint if exists messages_type_check;
 alter table messages
@@ -133,6 +176,12 @@ This project is built with:
 - `server/` Express + Socket.IO API server
 - `server/db/init.sql` initial schema
 - `src/` React app
+
+## Performance notes
+
+- Conversations are fetched with last message only; messages are paged (default 50).
+- Unread counts are cached in `conversation_members.unread_count`.
+- Client batches incoming messages to reduce UI lag during spikes.
 
 ## Production notes
 

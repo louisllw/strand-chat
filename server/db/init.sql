@@ -7,6 +7,17 @@ create table if not exists users (
   email text not null unique,
   password_hash text not null,
   avatar_url text,
+  banner_url text,
+  phone text,
+  bio text,
+  website_url text,
+  social_x text,
+  social_instagram text,
+  social_linkedin text,
+  social_tiktok text,
+  social_youtube text,
+  social_facebook text,
+  social_github text,
   status text not null default 'offline',
   theme text not null default 'light',
   username_updated_at timestamptz not null default now(),
@@ -30,6 +41,7 @@ create table if not exists conversation_members (
   joined_at timestamptz not null default now(),
   cleared_at timestamptz,
   hidden_at timestamptz,
+  unread_count integer not null default 0,
   primary key (conversation_id, user_id)
 );
 
@@ -72,3 +84,6 @@ create table if not exists message_reads (
 
 create index if not exists idx_messages_conversation_created_at on messages (conversation_id, created_at);
 create index if not exists idx_message_reads_user on message_reads (user_id);
+create index if not exists idx_messages_conversation_sender_created_at on messages (conversation_id, sender_id, created_at);
+create index if not exists idx_conversation_members_user_hidden on conversation_members (user_id, hidden_at);
+create index if not exists idx_conversation_members_conversation_hidden on conversation_members (conversation_id, hidden_at);

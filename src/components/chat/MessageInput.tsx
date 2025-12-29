@@ -24,6 +24,43 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const emojiScrollRef = useRef<HTMLDivElement | null>(null);
   const emojiSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const lastKeyboardInset = useRef(0);
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+    const keyboardThreshold = 120;
+    const updateInset = () => {
+      const delta = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
+      const inset = delta > keyboardThreshold ? Math.max(0, delta) : 0;
+      lastKeyboardInset.current = inset;
+      setKeyboardInset(inset);
+    };
+    updateInset();
+    visualViewport.addEventListener('resize', updateInset);
+    visualViewport.addEventListener('scroll', updateInset);
+    window.addEventListener('resize', updateInset);
+    return () => {
+      visualViewport.removeEventListener('resize', updateInset);
+      visualViewport.removeEventListener('scroll', updateInset);
+      window.removeEventListener('resize', updateInset);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleFocusOut = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.tagName === 'TEXTAREA') {
+        if (lastKeyboardInset.current !== 0) {
+          lastKeyboardInset.current = 0;
+          setKeyboardInset(0);
+        }
+      }
+    };
+    document.addEventListener('focusout', handleFocusOut);
+    return () => document.removeEventListener('focusout', handleFocusOut);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -174,7 +211,13 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   if (!activeConversation) return null;
 
   return (
-    <div className={cn('border-t border-border bg-card p-4', className)}>
+    <div
+      className={cn(
+        'fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-card p-3 sm:sticky sm:bottom-0 sm:left-auto sm:right-auto sm:z-10 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+6px)]',
+        className
+      )}
+      style={{ bottom: keyboardInset ? `${keyboardInset}px` : undefined }}
+    >
       <div className="max-w-3xl mx-auto">
         {replyToMessage && (
           <div className="mb-3 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
@@ -193,7 +236,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
             <Button variant="icon" size="iconSm" onClick={handleFileClick}>
               <Paperclip className="h-5 w-5" />
             </Button>
-            <Button variant="icon" size="iconSm">
+            <Button variant="icon" size="iconSm" className="hidden sm:inline-flex">
               <Image className="h-5 w-5" />
             </Button>
           </div>
@@ -207,7 +250,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="w-full resize-none rounded-xl border border-input bg-background px-4 py-3 pr-24 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200 max-h-36"
+              className="w-full resize-none rounded-xl border border-input bg-background px-3 sm:px-4 py-2.5 sm:py-3 pr-20 sm:pr-24 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200 max-h-36"
             />
             
             {/* Emoji and mic buttons inside input */}
@@ -221,7 +264,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                   <Smile className="h-5 w-5" />
                 </Button>
                 {isEmojiPickerOpen && (
-                  <div className="absolute bottom-11 right-0 z-20 w-80 rounded-xl border border-border bg-background p-2 shadow-lg">
+                  <div className="absolute bottom-11 right-0 z-20 w-72 sm:w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-background p-2 shadow-lg">
                     <input
                       type="text"
                       value={emojiQuery}
@@ -323,7 +366,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                   </div>
                 )}
               </div>
-              <Button variant="icon" size="iconSm">
+              <Button variant="icon" size="iconSm" className="hidden sm:inline-flex">
                 <Mic className="h-5 w-5" />
               </Button>
             </div>
@@ -333,7 +376,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
           <Button
             onClick={handleSend}
             disabled={!message.trim()}
-            className="rounded-xl h-11 w-11 p-0"
+            className="rounded-xl h-10 w-10 sm:h-11 sm:w-11 p-0"
           >
             <Send className="h-5 w-5" />
           </Button>

@@ -7,12 +7,12 @@ interface EmptyStateProps {
 
 export const EmptyState = ({ onMobileMenuClick }: EmptyStateProps) => {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-background text-center p-8">
+    <div className="flex-1 flex flex-col items-center justify-center bg-background text-center p-6 sm:p-8 pt-[calc(1.5rem+env(safe-area-inset-top))]">
       {/* Mobile menu button */}
       <Button 
         variant="icon" 
         size="icon" 
-        className="absolute top-4 left-4 lg:hidden"
+        className="absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 lg:hidden"
         onClick={onMobileMenuClick}
       >
         <Menu className="h-5 w-5" />
@@ -27,10 +27,10 @@ export const EmptyState = ({ onMobileMenuClick }: EmptyStateProps) => {
         </div>
       </div>
 
-      <h2 className="text-2xl font-semibold text-foreground mb-2">
+      <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">
         Welcome to Strand
       </h2>
-      <p className="text-muted-foreground max-w-md">
+      <p className="text-sm sm:text-base text-muted-foreground max-w-md">
         Select a conversation from the sidebar to start chatting, or create a new conversation to connect with friends and colleagues.
       </p>
     </div>
