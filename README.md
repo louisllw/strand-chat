@@ -41,6 +41,50 @@ npm run dev
 
 Frontend proxies `/api` and `/socket.io` to `http://localhost:3001` via `vite.config.ts`.
 
+## Docker Compose / Portainer stack
+
+This setup runs Postgres + API + web via Docker. It also serves the frontend on port `8080`.
+
+### 1) Create root `.env` (for Postgres)
+
+Create a `.env` file in the repo root:
+
+```
+POSTGRES_DB=strand_messenger
+POSTGRES_USER=strand
+POSTGRES_PASSWORD=your_password
+```
+
+### 2) Configure `server/.env`
+
+Copy the example and update it:
+
+```
+cp server/.env.example server/.env
+```
+
+Set these values:
+
+- `DATABASE_URL=postgres://strand:your_password@db:5432/strand_messenger`
+- `JWT_SECRET=<random string>`
+- `CLIENT_ORIGIN=http://localhost:8080`
+- `PORT=3001`
+
+### 3) Start the stack
+
+```
+docker compose up -d --build
+```
+
+Open:
+- Frontend: `http://localhost:8080`
+- API: `http://localhost:3001`
+
+### Portainer
+
+In Portainer, create a new Stack and paste the contents of `docker-compose.yml`.
+Then add the same root `.env` values in the Portainer UI (or create them in the stack env section).
+
 ## Environment variables
 
 Copy `server/.env.example` to `server/.env` and update:
