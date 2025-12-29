@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.2
+
+- Removed Lovable branding and updated favicon/metadata.
+- Added user profiles (avatar/banner, bio, website, socials) and public profile view.
+- Added client-side avatar/banner cropping and resize.
+- Added message pagination and load-older flow.
+- Cached unread counts and optimized read tracking.
+- Improved chat performance under message bursts.
+- Mobile UX fixes for chat header, reactions, and input behavior.
+
 ## v0.0.1
 
 - Added Postgres + Socket.IO server with auth, conversations, messages, reactions, presence, and emoji support.
