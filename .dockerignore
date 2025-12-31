@@ -1,0 +1,41 @@
+node_modules
+npm-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency caches and build output
+.turbo
+.next
+out
+dist
+build
+coverage
+
+# Local env and config
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Git and editor files
+.git
+.gitignore
+.DS_Store
+.idea
+.vscode
+*.swp
+
+# Docker and CI artifacts
+docker-compose.override.yml
+docker-compose.local.yml
+tmp
+*.tgz
+
+# Server artifacts
+server/node_modules
+server/.env
+server/.env.*

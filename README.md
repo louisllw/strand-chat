@@ -54,15 +54,22 @@ Frontend proxies `/api` and `/socket.io` to `http://localhost:3001` via `vite.co
 
 This setup runs Postgres + API + web via Docker. It also serves the frontend on port `8080`.
 
-### 1) Create root `.env` (for Postgres)
+### Quick zero-config test
 
-Create a `.env` file in the repo root:
+The images include sensible defaults for local testing, so you can launch the stack without any configuration:
 
 ```
-POSTGRES_DB=strand_messenger
-POSTGRES_USER=strand
-POSTGRES_PASSWORD=your_password
+docker compose up -d --build
 ```
+
+The defaults map to:
+- `POSTGRES_DB=strand_messenger`
+- `POSTGRES_USER=strand`
+- `POSTGRES_PASSWORD=strand_password`
+- `DATABASE_URL=postgres://strand:strand_password@db:5432/strand_messenger`
+- `JWT_SECRET=change_me_in_production`
+- `COOKIE_NAME=strand_auth`
+- `CLIENT_ORIGIN=http://localhost:8080,http://localhost:5173`
 
 ### 2) Configure `server/.env`
 
@@ -93,6 +100,12 @@ Open:
 
 In Portainer, create a new Stack and paste the contents of `docker-compose.yml`.
 Then add the same root `.env` values in the Portainer UI (or create them in the stack env section).
+
+## Local checks
+
+- Lint: `npm run lint`
+- Frontend build: `npm run build`
+- Docker Compose (smoke): `docker compose up -d --build` then open `http://localhost:8080`
 
 ## Environment variables
 
