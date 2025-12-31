@@ -1,4 +1,4 @@
-# Strand Messenger
+# Strand Chat
 
 ## Project info
 

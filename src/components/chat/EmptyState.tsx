@@ -28,7 +28,7 @@ export const EmptyState = ({ onMobileMenuClick }: EmptyStateProps) => {
       </div>
 
       <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">
-        Welcome to Strand
+        Welcome to Strand Chat
       </h2>
       <p className="text-sm sm:text-base text-muted-foreground max-w-md">
         Select a conversation from the sidebar to start chatting, or create a new conversation to connect with friends and colleagues.

@@ -74,7 +74,7 @@ const Index = () => {
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Why choose Strand?
+              Why choose Strand Chat?
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Built with modern technology for a seamless messaging experience
@@ -120,7 +120,7 @@ const Index = () => {
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-foreground">Strand</span>
+            <span className="font-semibold text-foreground">Strand Chat</span>
           </div>
           <p className="text-sm text-muted-foreground">
             Built with React, TypeScript, and Tailwind CSS
