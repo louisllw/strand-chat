@@ -5,9 +5,9 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-strand_messenger}
+      POSTGRES_USER: ${POSTGRES_USER:-strand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./server/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -19,8 +19,12 @@ services:
       context: ./server
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./server/.env
+    environment:
+      PORT: ${PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@db:5432/strand_messenger}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
     depends_on:
       - db
     ports:
