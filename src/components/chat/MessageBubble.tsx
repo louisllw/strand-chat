@@ -7,7 +7,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 interface MessageBubbleProps {
   message: Message;
   isSent: boolean;
-  showAvatar?: boolean;
   senderName?: string;
   onReply?: (message: Message) => void;
   onJumpToMessage?: (messageId: string) => void;
@@ -39,7 +38,6 @@ export const MessageBubble = (props: MessageBubbleProps) => {
   const {
     message,
     isSent,
-    showAvatar,
     senderName,
     onReply,
     onJumpToMessage,

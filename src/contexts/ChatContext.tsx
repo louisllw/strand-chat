@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Message, Conversation, TypingIndicator, MessageReaction } from '@/types';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/useAuth';
 import { useSocket } from '@/contexts/useSocket';
-import { ChatContext } from '@/contexts/chat-context';
+import { ChatConversationsContext } from '@/contexts/chat-conversations-context';
+import { ChatMessagesContext } from '@/contexts/chat-messages-context';
+import { ChatTypingContext } from '@/contexts/chat-typing-context';
+import { ChatSearchContext } from '@/contexts/chat-search-context';
 
 const STORAGE_CONVERSATIONS_KEY = 'strand:chat:conversations';
 const STORAGE_LAST_ACTIVE_KEY = 'strand:chat:last-active';
@@ -386,27 +389,39 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const handleTyping = (indicator: TypingIndicator) => {
-      console.log('[ChatContext] Received typing:indicator', indicator);
+      if (import.meta.env.DEV) {
+        console.log('[ChatContext] Received typing:indicator', indicator);
+      }
       if (indicator.userId === user?.id) {
-        console.log('[ChatContext] Ignoring own typing indicator');
+        if (import.meta.env.DEV) {
+          console.log('[ChatContext] Ignoring own typing indicator');
+        }
         return;
       }
       setTypingIndicators(prev => {
         const exists = prev.some(t => t.userId === indicator.userId && t.conversationId === indicator.conversationId);
         if (exists) {
-          console.log('[ChatContext] Typing indicator already exists');
+          if (import.meta.env.DEV) {
+            console.log('[ChatContext] Typing indicator already exists');
+          }
           return prev;
         }
-        console.log('[ChatContext] Adding typing indicator', [...prev, indicator]);
+        if (import.meta.env.DEV) {
+          console.log('[ChatContext] Adding typing indicator', [...prev, indicator]);
+        }
         return [...prev, indicator];
       });
     };
 
     const handleTypingStop = (payload: { conversationId: string; userId: string }) => {
-      console.log('[ChatContext] Received typing:stop', payload);
+      if (import.meta.env.DEV) {
+        console.log('[ChatContext] Received typing:stop', payload);
+      }
       setTypingIndicators(prev => {
         const filtered = prev.filter(t => !(t.conversationId === payload.conversationId && t.userId === payload.userId));
-        console.log('[ChatContext] Typing indicators after stop:', filtered);
+        if (import.meta.env.DEV) {
+          console.log('[ChatContext] Typing indicators after stop:', filtered);
+        }
         return filtered;
       });
     };
@@ -642,33 +657,62 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshConversations();
   }, [refreshConversations]);
 
+  const conversationsValue = useMemo(() => ({
+    conversations,
+    activeConversation,
+    setActiveConversation: handleSetActiveConversation,
+    markAsRead,
+    createDirectConversation,
+    createGroupConversation,
+    addGroupMembers,
+    leaveGroup,
+    deleteConversation,
+    refreshConversations,
+  }), [
+    conversations,
+    activeConversation,
+    handleSetActiveConversation,
+    markAsRead,
+    createDirectConversation,
+    createGroupConversation,
+    addGroupMembers,
+    leaveGroup,
+    deleteConversation,
+    refreshConversations,
+  ]);
+
+  const messagesValue = useMemo(() => ({
+    messages,
+    replyToMessage,
+    isLoadingOlder,
+    hasMoreMessages,
+    setReplyToMessage,
+    sendMessage,
+    toggleReaction,
+    loadOlderMessages,
+  }), [
+    messages,
+    replyToMessage,
+    isLoadingOlder,
+    hasMoreMessages,
+    setReplyToMessage,
+    sendMessage,
+    toggleReaction,
+    loadOlderMessages,
+  ]);
+
+  const typingValue = useMemo(() => ({ typingIndicators }), [typingIndicators]);
+  const searchValue = useMemo(() => ({ searchQuery, setSearchQuery }), [searchQuery]);
+
   return (
-    <ChatContext.Provider
-      value={{
-        conversations,
-        activeConversation,
-        messages,
-        typingIndicators,
-        searchQuery,
-        replyToMessage,
-        isLoadingOlder,
-        hasMoreMessages,
-        setActiveConversation: handleSetActiveConversation,
-        sendMessage,
-        setSearchQuery,
-        markAsRead,
-        createDirectConversation,
-        createGroupConversation,
-        addGroupMembers,
-        leaveGroup,
-        refreshConversations,
-        setReplyToMessage,
-        toggleReaction,
-        deleteConversation,
-        loadOlderMessages,
-      }}
-    >
-      {children}
-    </ChatContext.Provider>
+    <ChatConversationsContext.Provider value={conversationsValue}>
+      <ChatMessagesContext.Provider value={messagesValue}>
+        <ChatTypingContext.Provider value={typingValue}>
+          <ChatSearchContext.Provider value={searchValue}>
+            {children}
+          </ChatSearchContext.Provider>
+        </ChatTypingContext.Provider>
+      </ChatMessagesContext.Provider>
+    </ChatConversationsContext.Provider>
   );
 };

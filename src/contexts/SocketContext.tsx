@@ -24,14 +24,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setPresenceStatus('offline');
     };
     const handleConnectError = (error: Error) => {
-      console.error('[socket] connect_error', error.message);
+      if (import.meta.env.DEV) {
+        console.error('[socket] connect_error', error.message);
+      }
     };
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
-    if (!socket.connected) {
-      socket.connect();
-    }
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
@@ -41,7 +40,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isConnected) return;
     let idleTimer: number | undefined;
     let lastState: 'active' | 'away' = 'active';
 
@@ -82,7 +81,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activityEvents.forEach(event => window.removeEventListener(event, setActive));
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [idleTimeoutMs]);
+  }, [idleTimeoutMs, isConnected]);
 
   const emit = (event: string, data: unknown) => {
     socket.emit(event, data);

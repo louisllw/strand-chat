@@ -4,10 +4,10 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { MessageList } from '@/components/chat/MessageList';
 import { MessageInput } from '@/components/chat/MessageInput';
 import { EmptyState } from '@/components/chat/EmptyState';
-import { useChat } from '@/contexts/useChat';
+import { useChatConversations } from '@/contexts/useChatConversations';
 
 const Chat = () => {
-  const { activeConversation } = useChat();
+  const { activeConversation } = useChatConversations();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {

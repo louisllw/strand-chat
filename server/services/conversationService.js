@@ -1,4 +1,4 @@
-import { getClient, query } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import {
   addConversationMembers,
   createConversation,
@@ -61,18 +61,14 @@ export const createConversationWithParticipants = async ({ userId, type, name, p
     throw new ServiceError(400, 'Participants required');
   }
 
-  const client = await getClient();
   try {
-    await client.query('begin');
-    const members = Array.from(new Set([userId, ...participantIds]));
-    const conversation = await createConversation({ name, type, memberIds: members }, client);
-    await client.query('commit');
-    return { conversationId: conversation.id, memberIds: members };
+    return await withTransaction(async (client) => {
+      const members = Array.from(new Set([userId, ...participantIds]));
+      const conversation = await createConversation({ name, type, memberIds: members }, client);
+      return { conversationId: conversation.id, memberIds: members };
+    });
   } catch (error) {
-    await client.query('rollback');
     throw new ServiceError(500, 'Failed to create conversation');
-  } finally {
-    client.release();
   }
 };
 
@@ -100,17 +96,13 @@ export const createDirectChat = async ({ userId, username }) => {
     return { conversationId: existingConversationId, memberIds: [userId] };
   }
 
-  const client = await getClient();
   try {
-    await client.query('begin');
-    const conversationId = await createDirectConversation({ userId, otherUserId }, client);
-    await client.query('commit');
-    return { conversationId, memberIds: [userId, otherUserId] };
+    return await withTransaction(async (client) => {
+      const conversationId = await createDirectConversation({ userId, otherUserId }, client);
+      return { conversationId, memberIds: [userId, otherUserId] };
+    });
   } catch (error) {
-    await client.query('rollback');
     throw new ServiceError(500, 'Failed to create conversation');
-  } finally {
-    client.release();
   }
 };
 
@@ -139,17 +131,13 @@ export const createGroupChat = async ({ userId, name, usernames }) => {
   }
 
   const members = [userId, ...participantIds];
-  const client = await getClient();
   try {
-    await client.query('begin');
-    const conversationId = await createGroupConversation({ name, memberIds: members }, client);
-    await client.query('commit');
-    return { conversationId, memberIds: members };
+    return await withTransaction(async (client) => {
+      const conversationId = await createGroupConversation({ name, memberIds: members }, client);
+      return { conversationId, memberIds: members };
+    });
   } catch (error) {
-    await client.query('rollback');
     throw new ServiceError(500, 'Failed to create group');
-  } finally {
-    client.release();
   }
 };
 
@@ -224,16 +212,12 @@ export const addMembersToConversation = async ({ conversationId, userId, usernam
     return { added: 0 };
   }
 
-  const client = await getClient();
   try {
-    await client.query('begin');
-    await addConversationMembers({ conversationId, userIds: newIds }, client);
-    await client.query('commit');
+    await withTransaction(async (client) => {
+      await addConversationMembers({ conversationId, userIds: newIds }, client);
+    });
   } catch (error) {
-    await client.query('rollback');
     throw new ServiceError(500, 'Failed to add members');
-  } finally {
-    client.release();
   }
 
   const addedNames = userRows

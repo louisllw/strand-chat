@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef, KeyboardEvent } from 'react';
-import { useChat } from '@/contexts/useChat';
+import { useChatConversations } from '@/contexts/useChatConversations';
+import { useChatMessages } from '@/contexts/useChatMessages';
 import { useSocket } from '@/contexts/useSocket';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,8 +13,10 @@ interface MessageInputProps {
 }
 
 export const MessageInput = ({ className }: MessageInputProps) => {
+  const TYPING_TIMEOUT_MS = 1200;
   const [message, setMessage] = useState('');
-  const { sendMessage, activeConversation, replyToMessage, setReplyToMessage } = useChat();
+  const { activeConversation } = useChatConversations();
+  const { sendMessage, replyToMessage, setReplyToMessage } = useChatMessages();
   const { socket } = useSocket();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,7 +121,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
         emoji: item.skins?.[0]?.native,
       }))
       .filter(item => item.emoji)
-  ), []);
+  ), [emojiData.emojis]);
 
   const emojiCategories = useMemo(() => (
     emojiData.categories
@@ -130,7 +133,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
           .map(id => emojiData.emojis[id]?.skins?.[0]?.native)
           .filter(Boolean) as string[],
       }))
-  ), []);
+  ), [emojiData.categories, emojiData.emojis]);
 
   const filteredEmojis = useMemo(() => {
     if (!emojiQuery) return [];
@@ -187,7 +190,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
       }
       typingTimeoutRef.current = window.setTimeout(() => {
         socket.emit('typing:stop', { conversationId: activeConversation.id });
-      }, 1200);
+      }, TYPING_TIMEOUT_MS);
     }
   };
 

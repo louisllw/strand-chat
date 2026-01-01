@@ -29,6 +29,13 @@ coverage
 .vscode
 *.swp
 
+# Docs and tests
+*.md
+**/*.test.*
+**/__tests__/
+server/tests
+tests
+
 # Docker and CI artifacts
 docker-compose.override.yml
 docker-compose.local.yml

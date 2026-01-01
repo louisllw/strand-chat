@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useChat } from '@/contexts/useChat';
+import { useChatConversations } from '@/contexts/useChatConversations';
+import { useChatSearch } from '@/contexts/useChatSearch';
 import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/useTheme';
 import { ConversationItem } from './ConversationItem';
@@ -17,7 +18,6 @@ import {
   LogOut,
   MessageSquarePlus,
   Users,
-  Menu,
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,15 @@ interface ChatSidebarProps {
 }
 
 export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) => {
-  const { conversations, activeConversation, setActiveConversation, searchQuery, setSearchQuery, markAsRead, createDirectConversation, createGroupConversation } = useChat();
+  const {
+    conversations,
+    activeConversation,
+    setActiveConversation,
+    markAsRead,
+    createDirectConversation,
+    createGroupConversation,
+  } = useChatConversations();
+  const { searchQuery, setSearchQuery } = useChatSearch();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();

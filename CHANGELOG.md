@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.4
+
+- Split chat context into focused providers to reduce UI re-renders.
+- Added Docker-persisted JWT secret generation for one-click setups.
+- Added readiness endpoint (`/api/ready`) that checks database connectivity.
+- Added Helmet security headers for the API.
+- Added database statement timeout and retry logic for transient read errors.
+- Added Socket.IO rate limits for messages, reactions, and typing events.
+- Enforced message length and attachment size limits (including data URLs).
+- Added periodic cleanup/sweeps for socket connection counts and message dedup cache.
+- Hardened production error logging with error IDs and reduced socket auth metadata.
+- Expanded deployment documentation for Caddy, Nginx, and Cloudflared.
+
 ## v0.0.3
 
 - Improved mobile chat layout stability around the keyboard (fixed header, message list sizing, input anchoring).
@@ -17,6 +30,9 @@
 - Validated pagination limits to avoid invalid or unbounded queries.
 - Avoided forcing users offline on login and guarded socket disconnect presence updates.
 - Refused to boot in production with the default JWT secret.
+- Auto-generate a JWT secret for Docker when unset/default in non-production.
+- Trust the first proxy hop so rate limiting works correctly behind Caddy.
+- Only connect Socket.IO after authentication to avoid unauthenticated 400s on landing.
 
 ## v0.0.2
 

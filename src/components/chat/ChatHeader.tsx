@@ -1,4 +1,5 @@
-import { useChat } from '@/contexts/useChat';
+import { useChatConversations } from '@/contexts/useChatConversations';
+import { useChatTyping } from '@/contexts/useChatTyping';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAvatar } from './UserAvatar';
@@ -24,7 +25,8 @@ interface ChatHeaderProps {
 }
 
 export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) => {
-  const { activeConversation, typingIndicators, deleteConversation, addGroupMembers, leaveGroup } = useChat();
+  const { activeConversation, deleteConversation, addGroupMembers, leaveGroup } = useChatConversations();
+  const { typingIndicators } = useChatTyping();
   const navigate = useNavigate();
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [newMembers, setNewMembers] = useState('');

@@ -1,5 +1,6 @@
 const TTL_MS = 60 * 1000;
 const dedupStore = new Map();
+const CLEANUP_INTERVAL_MS = 60 * 1000;
 
 const cleanup = () => {
   const now = Date.now();
@@ -11,6 +12,11 @@ const cleanup = () => {
 };
 
 const getKey = (userId, clientMessageId) => `${userId}:${clientMessageId}`;
+
+const cleanupInterval = setInterval(cleanup, CLEANUP_INTERVAL_MS);
+if (typeof cleanupInterval.unref === 'function') {
+  cleanupInterval.unref();
+}
 
 export const getMessageDedup = (userId, clientMessageId) => {
   if (!clientMessageId) return null;

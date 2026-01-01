@@ -13,13 +13,20 @@ import { listMessages, createMessage } from '../services/messageService.js';
 import { getMessageCursor } from '../models/messageModel.js';
 import { getMessageDedup, setMessageDedup } from '../services/messageDedup.js';
 import { sanitizeText } from '../utils/sanitize.js';
+import {
+  isAttachmentUrlTooLong,
+  isDataUrlTooLarge,
+  isMessageTooLong,
+} from '../utils/validation.js';
 
 export const createConversationController = (socketManager) => ({
   listConversations: async (req, res) => {
     const start = process.hrtime.bigint();
     const conversations = await listConversations(req.user.userId);
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-    console.log(`[perf] /api/conversations ${req.user.userId} ${durationMs.toFixed(1)}ms`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[perf] /api/conversations ${req.user.userId} ${durationMs.toFixed(1)}ms`);
+    }
     res.json({ conversations });
   },
 
@@ -60,6 +67,17 @@ export const createConversationController = (socketManager) => ({
 
     if (!sanitizedContent.trim()) {
       return res.status(400).json({ error: 'Message content required' });
+    }
+    if (isMessageTooLong(sanitizedContent)) {
+      return res.status(400).json({ error: 'Message too long' });
+    }
+    if (attachmentUrl) {
+      if (typeof attachmentUrl !== 'string') {
+        return res.status(400).json({ error: 'Invalid attachment' });
+      }
+      if (isAttachmentUrlTooLong(attachmentUrl) || isDataUrlTooLarge(attachmentUrl)) {
+        return res.status(400).json({ error: 'Attachment too large' });
+      }
     }
 
     if (clientMessageId) {

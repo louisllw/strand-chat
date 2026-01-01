@@ -32,6 +32,8 @@ export const me = async (req, res) => {
   const start = process.hrtime.bigint();
   const userRow = await getCurrentUser(req.user.userId);
   const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-  console.log(`[perf] /api/auth/me ${req.user.userId} ${durationMs.toFixed(1)}ms`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[perf] /api/auth/me ${req.user.userId} ${durationMs.toFixed(1)}ms`);
+  }
   res.json({ user: mapUser(userRow) });
 };

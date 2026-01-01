@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useChat } from '@/contexts/useChat';
+import { useChatConversations } from '@/contexts/useChatConversations';
+import { useChatMessages } from '@/contexts/useChatMessages';
+import { useChatTyping } from '@/contexts/useChatTyping';
 import { useAuth } from '@/contexts/useAuth';
 import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
@@ -12,17 +14,18 @@ interface MessageListProps {
 }
 
 export const MessageList = ({ className }: MessageListProps) => {
+  const SCROLL_THRESHOLD_PX = 80;
+  const { activeConversation } = useChatConversations();
   const {
     messages,
-    typingIndicators,
-    activeConversation,
     replyToMessage,
     setReplyToMessage,
     toggleReaction,
     loadOlderMessages,
     hasMoreMessages,
     isLoadingOlder,
-  } = useChat();
+  } = useChatMessages();
+  const { typingIndicators } = useChatTyping();
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -76,7 +79,7 @@ export const MessageList = ({ className }: MessageListProps) => {
       loadOlder();
     }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const isAtBottom = distanceFromBottom < 80;
+    const isAtBottom = distanceFromBottom < SCROLL_THRESHOLD_PX;
     isAtBottomRef.current = isAtBottom;
     if (isAtBottom) {
       setShowNewMessageIndicator(false);
@@ -290,7 +293,7 @@ export const MessageList = ({ className }: MessageListProps) => {
             </div>
 
             {/* Messages */}
-            {msgs.map((message, index) => {
+            {msgs.map((message) => {
               const isSent = currentUserId ? message.senderId === currentUserId : false;
               const isGroupChat = activeConversation?.type === 'group';
               const sender = activeConversation?.participants.find(
