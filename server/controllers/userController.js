@@ -20,7 +20,10 @@ export const updateMe = async (req, res) => {
 };
 
 export const getEmojiRecentsForMe = async (req, res) => {
-  const limit = Math.min(Number(req.query.limit || 24), 50);
+  const limitParam = Number(req.query.limit);
+  const limit = Number.isFinite(limitParam) && limitParam > 0
+    ? Math.min(limitParam, 50)
+    : 24;
   const emojis = await listEmojiRecents(req.user.userId, limit);
   res.json({ emojis });
 };

@@ -9,7 +9,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const defaultEnv = {
   PORT: '3001',
-  DATABASE_URL: 'postgres://strand:strand_password@db:5432/strand_messenger',
+  DATABASE_URL: 'postgres://strand:strand_password@db:5432/strand_chat',
   JWT_SECRET: 'change_me_in_production',
   COOKIE_NAME: 'strand_auth',
   CLIENT_ORIGIN: 'http://localhost:8080,http://localhost:5173,http://192.168.1.116:8080',
@@ -20,3 +20,7 @@ Object.entries(defaultEnv).forEach(([key, value]) => {
     process.env[key] = value;
   }
 });
+
+if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET === defaultEnv.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in production.');
+}

@@ -1,8 +1,15 @@
 :80 {
-  root * /srv
-  try_files {path} /index.html
-  file_server
+  handle /api/* {
+    reverse_proxy server:3001
+  }
 
-  reverse_proxy /api/* server:3001
-  reverse_proxy /socket.io/* server:3001
+  handle /socket.io/* {
+    reverse_proxy server:3001
+  }
+
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
 }

@@ -12,6 +12,11 @@
 - Added contributor guidelines and API documentation.
 - Backend refactor into controllers/services/models with new middleware and socket utilities.
 - UI component variants and hook utilities consolidated for maintainability.
+- Fixed Caddy routing so `/api` and `/socket.io` proxy correctly before static file handling.
+- Standardized defaults on "strand chat" naming across Docker, env, and docs.
+- Validated pagination limits to avoid invalid or unbounded queries.
+- Avoided forcing users offline on login and guarded socket disconnect presence updates.
+- Refused to boot in production with the default JWT secret.
 
 ## v0.0.2
 

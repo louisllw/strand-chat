@@ -247,16 +247,18 @@ export const registerSocketHandlers = (io, socketManager) => {
     });
 
     socket.on('disconnect', async () => {
-      await updateUserStatus(userId, 'offline');
       typingState.forEach((entry) => {
         if (entry?.timeoutId) clearTimeout(entry.timeoutId);
       });
       typingState.clear();
-      const lastSeen = new Date().toISOString();
       if (presenceTimeout) {
         clearTimeout(presenceTimeout);
         presenceTimeout = null;
       }
+      const remaining = connectionCounts.get(userId) || 0;
+      if (remaining > 0) return;
+      await updateUserStatus(userId, 'offline');
+      const lastSeen = new Date().toISOString();
       emitPresenceUpdate('offline', lastSeen);
     });
   });

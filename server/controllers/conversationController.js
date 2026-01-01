@@ -26,7 +26,10 @@ export const createConversationController = (socketManager) => ({
   listMessages: async (req, res) => {
     const userId = req.user.userId;
     const conversationId = req.params.id;
-    const limit = Math.min(Number(req.query.limit || 50), 500);
+    const limitParam = Number(req.query.limit);
+    const limit = Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(limitParam, 500)
+      : 50;
     const beforeId = typeof req.query.beforeId === 'string' ? req.query.beforeId : null;
     let beforeCreatedAt = null;
     if (beforeId) {

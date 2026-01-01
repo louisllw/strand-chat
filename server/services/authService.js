@@ -53,8 +53,6 @@ export const loginUser = async ({ email, password }) => {
   if (!match) {
     throw new ServiceError(401, 'Invalid credentials');
   }
-
-  await updateUserStatus(userRow.id, 'offline');
   return userRow;
 };
 

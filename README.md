@@ -27,7 +27,7 @@ Requirements:
 ```sh
 # 1) Clone and install frontend deps
 git clone <YOUR_GIT_URL>
-cd strand-messenger
+cd strand-chat
 npm install
 
 # 2) Install server deps
@@ -68,13 +68,18 @@ docker compose up -d --build
 ```
 
 The defaults map to:
-- `POSTGRES_DB=strand_messenger`
+- `POSTGRES_DB=strand_chat`
 - `POSTGRES_USER=strand`
 - `POSTGRES_PASSWORD=strand_password`
-- `DATABASE_URL=postgres://strand:strand_password@db:5432/strand_messenger`
+- `DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat`
 - `JWT_SECRET=change_me_in_production`
 - `COOKIE_NAME=strand_auth`
 - `CLIENT_ORIGIN=http://localhost:8080,http://localhost:5173`
+
+Warning: these defaults are for local tinkering only. If you expose the stack beyond your machine, change:
+- `POSTGRES_PASSWORD`
+- `JWT_SECRET`
+- `CLIENT_ORIGIN` (to your real frontend URL)
 
 ### 2) Configure `server/.env`
 
@@ -86,7 +91,7 @@ cp server/.env.example server/.env
 
 Set these values:
 
-- `DATABASE_URL=postgres://strand:your_password@db:5432/strand_messenger`
+- `DATABASE_URL=postgres://strand:your_password@db:5432/strand_chat`
 - `JWT_SECRET=<random string>`
 - `CLIENT_ORIGIN=http://localhost:8080`
 - `PORT=3001`
