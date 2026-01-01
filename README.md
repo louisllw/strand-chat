@@ -4,6 +4,11 @@
 
 Self-hosted real-time chat with Postgres + Socket.IO.
 
+## Docs
+
+- `CONTRIBUTING.md`
+- `API.md`
+
 ## Features
 
 - Direct + group conversations

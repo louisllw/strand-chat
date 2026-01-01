@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useChat } from '@/contexts/ChatContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useChat } from '@/contexts/useChat';
+import { useAuth } from '@/contexts/useAuth';
+import { useTheme } from '@/contexts/useTheme';
 import { ConversationItem } from './ConversationItem';
 import { UserAvatar } from './UserAvatar';
 import { Input } from '@/components/ui/input';
@@ -169,7 +169,7 @@ export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) =
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1" data-chat-scroll>
           {filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <MessageSquarePlus className="h-12 w-12 mb-4 opacity-50" />

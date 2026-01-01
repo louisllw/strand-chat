@@ -4,21 +4,83 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { MessageList } from '@/components/chat/MessageList';
 import { MessageInput } from '@/components/chat/MessageInput';
 import { EmptyState } from '@/components/chat/EmptyState';
-import { useChat } from '@/contexts/ChatContext';
+import { useChat } from '@/contexts/useChat';
 
 const Chat = () => {
   const { activeConversation } = useChat();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
+    // Lock both html and body to prevent any scrolling
+    document.documentElement.classList.add('chat-locked');
     document.body.classList.add('chat-locked');
+
+    // Store current scroll position and lock it
+    const scrollY = window.scrollY;
+    document.body.style.top = `-${scrollY}px`;
+
+    // Prevent any scroll events on window/document
+    const preventScroll = (e: Event) => {
+      // Allow scrolling only within approved chat scroll containers
+      const target = e.target as HTMLElement;
+      const isAllowedScroll = target.closest('[data-message-list], [data-chat-scroll]');
+
+      if (!isAllowedScroll && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    // Prevent touchmove on document unless it's in message list
+    const preventTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const isAllowedScroll = target.closest('[data-message-list], [data-chat-scroll]');
+
+      if (!isAllowedScroll && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('scroll', preventScroll, { passive: false });
+    document.addEventListener('touchmove', preventTouchMove, { passive: false });
+    window.addEventListener('scroll', preventScroll, { passive: false });
+
     return () => {
+      document.documentElement.classList.remove('chat-locked');
       document.body.classList.remove('chat-locked');
+      document.body.style.top = '';
+      document.documentElement.style.removeProperty('--chat-vvh');
+      window.scrollTo(0, scrollY);
+
+      document.removeEventListener('scroll', preventScroll);
+      document.removeEventListener('touchmove', preventTouchMove);
+      window.removeEventListener('scroll', preventScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) {
+      document.documentElement.style.setProperty('--chat-vvh', `${window.innerHeight}px`);
+      return undefined;
+    }
+
+    const updateViewportHeight = () => {
+      document.documentElement.style.setProperty('--chat-vvh', `${visualViewport.height}px`);
+      window.scrollTo(0, 0);
+    };
+
+    updateViewportHeight();
+    visualViewport.addEventListener('resize', updateViewportHeight);
+    visualViewport.addEventListener('scroll', updateViewportHeight);
+
+    return () => {
+      visualViewport.removeEventListener('resize', updateViewportHeight);
+      visualViewport.removeEventListener('scroll', updateViewportHeight);
     };
   }, []);
 
   return (
-    <div className="fixed left-0 top-0 w-full h-[100dvh] flex bg-background overflow-hidden overscroll-contain">
+    <div className="fixed left-0 top-0 w-full h-[var(--chat-vvh,100svh)] flex bg-background overflow-hidden overscroll-contain">
       {/* Sidebar */}
       <ChatSidebar 
         isMobileOpen={isSidebarOpen}
@@ -26,7 +88,7 @@ const Chat = () => {
       />
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="relative flex-1 flex flex-col min-w-0">
         {activeConversation ? (
           <>
             <ChatHeader onMobileMenuClick={() => setIsSidebarOpen(true)} />

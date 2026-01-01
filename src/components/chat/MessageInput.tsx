@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, KeyboardEvent } from 'react';
-import { useChat } from '@/contexts/ChatContext';
-import { useSocket } from '@/contexts/SocketContext';
+import { useChat } from '@/contexts/useChat';
+import { useSocket } from '@/contexts/useSocket';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import emojiMartData from '@emoji-mart/data';
@@ -24,42 +24,29 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const emojiScrollRef = useRef<HTMLDivElement | null>(null);
   const emojiSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [keyboardInset, setKeyboardInset] = useState(0);
-  const lastKeyboardInset = useRef(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) return;
-    const keyboardThreshold = 120;
-    const updateInset = () => {
-      const delta = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
-      const inset = delta > keyboardThreshold ? Math.max(0, delta) : 0;
-      lastKeyboardInset.current = inset;
-      setKeyboardInset(inset);
+    if (!containerRef.current) return undefined;
+    const element = containerRef.current;
+    const updateHeightVar = () => {
+      const height = element.offsetHeight;
+      document.documentElement.style.setProperty('--chat-input-height', `${height}px`);
     };
-    updateInset();
-    visualViewport.addEventListener('resize', updateInset);
-    visualViewport.addEventListener('scroll', updateInset);
-    window.addEventListener('resize', updateInset);
+    updateHeightVar();
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(updateHeightVar);
+      observer.observe(element);
+    }
+
+    window.addEventListener('resize', updateHeightVar);
     return () => {
-      visualViewport.removeEventListener('resize', updateInset);
-      visualViewport.removeEventListener('scroll', updateInset);
-      window.removeEventListener('resize', updateInset);
+      observer?.disconnect();
+      window.removeEventListener('resize', updateHeightVar);
+      document.documentElement.style.removeProperty('--chat-input-height');
     };
-  }, []);
-
-  useEffect(() => {
-    const handleFocusOut = (event: FocusEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && target.tagName === 'TEXTAREA') {
-        if (lastKeyboardInset.current !== 0) {
-          lastKeyboardInset.current = 0;
-          setKeyboardInset(0);
-        }
-      }
-    };
-    document.addEventListener('focusout', handleFocusOut);
-    return () => document.removeEventListener('focusout', handleFocusOut);
   }, []);
 
   useEffect(() => {
@@ -212,11 +199,11 @@ export const MessageInput = ({ className }: MessageInputProps) => {
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-card p-3 sm:sticky sm:bottom-0 sm:left-auto sm:right-auto sm:z-10 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+6px)]',
+        'absolute bottom-0 left-0 right-0 z-20 border-t border-border bg-card p-3 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+6px)]',
         className
       )}
-      style={{ bottom: keyboardInset ? `${keyboardInset}px` : undefined }}
     >
       <div className="max-w-3xl mx-auto">
         {replyToMessage && (
@@ -247,6 +234,9 @@ export const MessageInput = ({ className }: MessageInputProps) => {
               ref={textareaRef}
               value={message}
               onChange={handleTextareaChange}
+              onFocus={() => {
+                window.dispatchEvent(new CustomEvent('chat:input-focus'));
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}

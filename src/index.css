@@ -146,22 +146,90 @@
     font-family: 'Inter', sans-serif;
   }
 
-  body.chat-locked {
-    overflow: hidden;
-  }
-
   html,
   body,
   #root {
     height: 100%;
   }
+
+  /* Chat page - lock scrolling on both html and body */
+  html.chat-locked,
+  body.chat-locked {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+    height: 100% !important;
+    overscroll-behavior: none !important;
+    touch-action: none !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+  }
+
+  /* Lock root sizing so the page can't grow and scroll when the keyboard opens */
+  html.chat-locked #root,
+  body.chat-locked #root {
+    overflow: hidden !important;
+    height: 100% !important;
+  }
+
+  /* Prevent any touch scrolling on the locked page itself */
+  html.chat-locked > body,
+  body.chat-locked {
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  /* Prevent iOS Safari from moving content when keyboard opens */
+  @supports (-webkit-touch-callout: none) {
+    html.chat-locked,
+    body.chat-locked {
+      position: fixed !important;
+      overflow: hidden !important;
+      width: 100% !important;
+      height: 100dvh !important;
+      overscroll-behavior: none !important;
+      -webkit-overflow-scrolling: auto !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+    }
+
+    /* Only apply to root when chat is locked */
+    html.chat-locked #root,
+    body.chat-locked #root {
+      overflow: hidden !important;
+      height: 100dvh !important;
+      position: relative;
+    }
+  }
 }
 
+@layer utilities {
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+}
+
+/* Prevent iOS from zooming on input focus by ensuring font-size is at least 16px */
 @media (max-width: 768px) {
   input,
   textarea,
   select {
     font-size: 16px;
+  }
+}
+
+/* iOS-specific fixes for keyboard handling */
+@supports (-webkit-touch-callout: none) {
+  /* Prevent Safari from adjusting layout when keyboard appears */
+  @media (max-width: 768px) {
+    input,
+    textarea {
+      font-size: 16px !important;
+      -webkit-text-size-adjust: 100%;
+    }
   }
 }
 
@@ -253,6 +321,15 @@
   }
   30% {
     transform: translateY(-4px);
+  }
+}
+
+@keyframes strand {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: -200% 50%;
   }
 }
 

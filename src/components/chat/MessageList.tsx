@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useChat } from '@/contexts/ChatContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useChat } from '@/contexts/useChat';
+import { useAuth } from '@/contexts/useAuth';
 import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 
 interface MessageListProps {
   className?: string;
@@ -15,6 +16,7 @@ export const MessageList = ({ className }: MessageListProps) => {
     messages,
     typingIndicators,
     activeConversation,
+    replyToMessage,
     setReplyToMessage,
     toggleReaction,
     loadOlderMessages,
@@ -32,8 +34,19 @@ export const MessageList = ({ className }: MessageListProps) => {
   const isAtBottomRef = useRef(true);
   const isPrependingRef = useRef(false);
   const isAutoScrollingRef = useRef(false);
+  const lastViewportHeightRef = useRef<number | null>(null);
+  const keyboardInset = useKeyboardInset();
 
-  const loadOlder = async () => {
+  const getInputHeight = () => {
+    if (typeof window === 'undefined') return 0;
+    const raw = window.getComputedStyle(document.documentElement)
+      .getPropertyValue('--chat-input-height')
+      .trim();
+    const value = parseFloat(raw);
+    return Number.isFinite(value) ? value : 0;
+  };
+
+  const loadOlder = useCallback(async () => {
     if (!containerRef.current || isLoadingOlder || !hasMoreMessages) return;
     const container = containerRef.current;
     const prevScrollHeight = container.scrollHeight;
@@ -50,13 +63,13 @@ export const MessageList = ({ className }: MessageListProps) => {
       });
     }
     isPrependingRef.current = false;
-  };
+  }, [hasMoreMessages, isLoadingOlder, loadOlderMessages]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  const updateScrollState = () => {
+  const updateScrollState = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     if (el.scrollTop < 120 && !isAutoScrollingRef.current) {
@@ -69,7 +82,7 @@ export const MessageList = ({ className }: MessageListProps) => {
       setShowNewMessageIndicator(false);
       setUnseenCount(0);
     }
-  };
+  }, [loadOlder]);
 
   const jumpToMessage = (messageId: string) => {
     const target = messageRefs.current[messageId];
@@ -104,7 +117,101 @@ export const MessageList = ({ className }: MessageListProps) => {
 
   useEffect(() => {
     updateScrollState();
-  }, [typingIndicators]);
+  }, [typingIndicators, updateScrollState]);
+
+  useEffect(() => {
+    const handleInputFocus = () => {
+      const container = containerRef.current;
+      if (!container || !messagesEndRef.current) return;
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const shouldStick = replyToMessage !== null || distanceFromBottom < 160 || isAtBottomRef.current;
+
+      if (shouldStick) {
+        isAtBottomRef.current = true;
+        // Delay scroll to allow keyboard animation to complete
+        setTimeout(() => {
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          });
+        }, 150);
+      }
+    };
+
+    const handleKeyboardOpen = () => {
+      const container = containerRef.current;
+      if (!container || !messagesEndRef.current) return;
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const shouldStick = replyToMessage !== null || distanceFromBottom < 160 || isAtBottomRef.current;
+
+      if (shouldStick) {
+        isAtBottomRef.current = true;
+        // Scroll to bottom when keyboard opens to ensure messages are visible
+        setTimeout(() => {
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          });
+        }, 100);
+      }
+    };
+
+    const handleKeyboardClose = () => {
+      // Ensure proper scroll position when keyboard closes
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          if (isAtBottomRef.current && messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+          }
+        });
+      }, 100);
+    };
+
+    window.addEventListener('chat:input-focus', handleInputFocus);
+    window.addEventListener('chat:keyboard-open', handleKeyboardOpen);
+    window.addEventListener('chat:keyboard-close', handleKeyboardClose);
+    return () => {
+      window.removeEventListener('chat:input-focus', handleInputFocus);
+      window.removeEventListener('chat:keyboard-open', handleKeyboardOpen);
+      window.removeEventListener('chat:keyboard-close', handleKeyboardClose);
+    };
+  }, [replyToMessage]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !messagesEndRef.current) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const inputHeight = getInputHeight();
+    const threshold = Math.max(160, inputHeight + 40);
+    const shouldStick = replyToMessage !== null || distanceFromBottom < threshold || isAtBottomRef.current;
+
+    if (keyboardInset > 0 && shouldStick) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
+    }
+  }, [keyboardInset, replyToMessage]);
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return undefined;
+
+    const updateViewport = () => {
+      const prevHeight = lastViewportHeightRef.current;
+      const nextHeight = visualViewport.height;
+      lastViewportHeightRef.current = nextHeight;
+
+      if (prevHeight && nextHeight < prevHeight && messagesEndRef.current) {
+        isAtBottomRef.current = true;
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+        });
+      }
+    };
+
+    updateViewport();
+    visualViewport.addEventListener('resize', updateViewport);
+    return () => visualViewport.removeEventListener('resize', updateViewport);
+  }, []);
 
   const currentUserId = user?.id;
 
@@ -144,12 +251,21 @@ export const MessageList = ({ className }: MessageListProps) => {
   );
 
   return (
-    <div className={cn('relative flex-1 min-h-0', className)}>
+    <div
+      className={cn('relative flex-1 min-h-0', className)}
+    >
       <div
         ref={containerRef}
+        data-message-list
         onScroll={updateScrollState}
-        className="h-full overflow-y-auto overscroll-contain touch-pan-y p-3 sm:p-4 pb-28 sm:pb-28"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="h-full overflow-y-auto overscroll-contain p-3 sm:p-4 pb-28 sm:pb-28"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          height: 'calc(100% - var(--chat-input-height, 0px))',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)',
+          transition: 'height 0.2s ease-out, padding-bottom 0.2s ease-out',
+        }}
       >
         <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
         {hasMoreMessages && (

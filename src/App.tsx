@@ -3,10 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/useAuth";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -18,18 +19,27 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const LoadingScreen = () => (
+  <div className="fixed inset-0 grid place-items-center bg-background overflow-hidden">
+    <div className="relative">
+      <div className="relative h-16 w-16">
+        <div className="absolute inset-0 rounded-full border border-primary/30" />
+        <div className="absolute inset-0 rounded-full border-t-2 border-primary animate-spin [animation-duration:1.2s]" />
+        <div className="absolute inset-2 rounded-full bg-primary/5" />
+      </div>
+      <div className="mt-5 text-center text-[11px] font-medium tracking-[0.28em] text-muted-foreground">
+        LOADING
+      </div>
+    </div>
+  </div>
+);
+
 // Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background overflow-hidden">
-        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
-          <span className="text-primary-foreground text-xl">M</span>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
@@ -40,13 +50,7 @@ const GuestRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background overflow-hidden">
-        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
-          <span className="text-primary-foreground text-xl">M</span>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return !isAuthenticated ? <>{children}</> : <Navigate to="/chat" replace />;
