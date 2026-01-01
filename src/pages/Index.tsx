@@ -1,4 +1,4 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ArrowRight, Users, Shield, Zap } from 'lucide-react';

@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '';
+const SOCKET_BASE = import.meta.env.VITE_SOCKET_URL || '';
 
 export const apiFetch = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -19,7 +20,17 @@ export const apiFetch = async <T>(path: string, options: RequestInit = {}): Prom
 };
 
 export const getSocketUrl = () => {
-  if (API_BASE && !API_BASE.startsWith('/')) return API_BASE;
+  if (SOCKET_BASE) {
+    return SOCKET_BASE;
+  }
+  if (API_BASE && !API_BASE.startsWith('/')) {
+    try {
+      const apiUrl = new URL(API_BASE);
+      return `${apiUrl.protocol}//${apiUrl.host}`;
+    } catch {
+      return API_BASE;
+    }
+  }
   if (API_BASE && API_BASE.startsWith('/')) return window.location.origin;
   const { protocol, hostname, port } = window.location;
   if (!port || port === '3001') {

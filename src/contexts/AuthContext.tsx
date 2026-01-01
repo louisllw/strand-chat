@@ -1,21 +1,13 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { User, AuthState } from '@/types';
 import { apiFetch } from '@/lib/api';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useSocket } from '@/contexts/SocketContext';
-
-interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  updateUser: (user: Partial<User>) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { useTheme } from '@/contexts/useTheme';
+import { useSocket } from '@/contexts/useSocket';
+import { AuthContext } from '@/contexts/auth-context';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { setTheme } = useTheme();
-  const { isConnected, presenceStatus } = useSocket();
+  const { isConnected, presenceStatus, socket } = useSocket();
   const [state, setState] = useState<AuthState>({
     user: null,
     isAuthenticated: false,
@@ -77,6 +69,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.removeEventListener('visibilitychange', refreshSession);
     };
   }, [state.isAuthenticated, isConnected, setTheme]);
+
+  useEffect(() => {
+    if (!socket) return;
+    if (state.isAuthenticated) {
+      socket.connect();
+    } else {
+      socket.disconnect();
+    }
+  }, [socket, state.isAuthenticated]);
 
   useEffect(() => {
     if (!state.isAuthenticated || !state.user) return;
@@ -152,12 +153,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

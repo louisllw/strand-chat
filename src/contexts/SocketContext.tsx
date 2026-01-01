@@ -1,48 +1,44 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import React, { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { getSocketUrl } from '@/lib/api';
+import { SocketContext } from '@/contexts/socket-context';
 
-interface SocketContextType {
-  isConnected: boolean;
-  socket: Socket | null;
-  presenceStatus: 'online' | 'away' | 'offline';
-  emit: (event: string, data: unknown) => void;
-  on: (event: string, callback: (data: unknown) => void) => void;
-  off: (event: string) => void;
-}
-
-const SocketContext = createContext<SocketContextType | undefined>(undefined);
+const socket = io(getSocketUrl(), {
+  withCredentials: true,
+  autoConnect: false,
+});
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [presenceStatus, setPresenceStatus] = useState<'online' | 'away' | 'offline'>('offline');
-  const socket = useMemo(
-    () =>
-      io(getSocketUrl(), {
-        withCredentials: true,
-        autoConnect: true,
-      }),
-    []
-  );
   const idleTimeoutMs = 30 * 1000;
 
   useEffect(() => {
     const handleConnect = () => {
       setIsConnected(true);
       setPresenceStatus('online');
+      socket.emit('presence:active');
     };
     const handleDisconnect = () => {
       setIsConnected(false);
       setPresenceStatus('offline');
     };
+    const handleConnectError = (error: Error) => {
+      console.error('[socket] connect_error', error.message);
+    };
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    if (!socket.connected) {
+      socket.connect();
+    }
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
       socket.disconnect();
     };
-  }, [socket]);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -86,20 +82,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activityEvents.forEach(event => window.removeEventListener(event, setActive));
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [socket]);
+  }, [idleTimeoutMs]);
 
   const emit = (event: string, data: unknown) => {
-    if (socket.connected) {
-      socket.emit(event, data);
-    }
+    socket.emit(event, data);
   };
 
   const on = (event: string, callback: (data: unknown) => void) => {
     socket.on(event, callback);
   };
 
-  const off = (event: string) => {
-    socket.off(event);
+  const off = (event: string, callback: (data: unknown) => void) => {
+    socket.off(event, callback);
   };
 
   return (
@@ -107,12 +101,4 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       {children}
     </SocketContext.Provider>
   );
-};
-
-export const useSocket = () => {
-  const context = useContext(SocketContext);
-  if (context === undefined) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
-  return context;
 };

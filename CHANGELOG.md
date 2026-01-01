@@ -10,6 +10,8 @@
 - Updated the auth loading screen with a clean, minimal spinner.
 - Cleaned up keyboard/resize listeners and observers to avoid memory leaks.
 - Added contributor guidelines and API documentation.
+- Backend refactor into controllers/services/models with new middleware and socket utilities.
+- UI component variants and hook utilities consolidated for maintainability.
 
 ## v0.0.2
 

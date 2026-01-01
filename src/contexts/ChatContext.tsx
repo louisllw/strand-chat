@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Message, Conversation, TypingIndicator, MessageReaction } from '@/types';
 import { apiFetch } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { useSocket } from '@/contexts/SocketContext';
+import { useAuth } from '@/contexts/useAuth';
+import { useSocket } from '@/contexts/useSocket';
+import { ChatContext } from '@/contexts/chat-context';
 
 const STORAGE_CONVERSATIONS_KEY = 'strand:chat:conversations';
 const STORAGE_LAST_ACTIVE_KEY = 'strand:chat:last-active';
@@ -32,32 +33,6 @@ const safeStorage = {
   },
 };
 
-interface ChatContextType {
-  conversations: Conversation[];
-  activeConversation: Conversation | null;
-  messages: Message[];
-  typingIndicators: TypingIndicator[];
-  searchQuery: string;
-  replyToMessage: Message | null;
-  isLoadingOlder: boolean;
-  hasMoreMessages: boolean;
-  setActiveConversation: (conversation: Conversation | null) => void;
-  sendMessage: (content: string, type?: 'text' | 'image' | 'file') => void;
-  setSearchQuery: (query: string) => void;
-  markAsRead: (conversationId: string) => void;
-  createDirectConversation: (username: string) => Promise<Conversation | null>;
-  createGroupConversation: (name: string, usernames: string[]) => Promise<Conversation | null>;
-  addGroupMembers: (conversationId: string, usernames: string[]) => Promise<void>;
-  leaveGroup: (conversationId: string) => Promise<void>;
-  refreshConversations: () => Promise<Conversation[]>;
-  setReplyToMessage: (message: Message | null) => void;
-  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
-  deleteConversation: (conversationId: string) => Promise<void>;
-  loadOlderMessages: () => Promise<number>;
-}
-
-const ChatContext = createContext<ChatContextType | undefined>(undefined);
-
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { socket, on, off, emit } = useSocket();
@@ -74,6 +49,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const conversationsRef = useRef<Conversation[]>([]);
   const messageQueueRef = useRef<Record<string, Message[]>>({});
   const flushMessagesRef = useRef<number | null>(null);
+  const isFlushingRef = useRef(false);
+  const joinedConversationsRef = useRef<Set<string>>(new Set());
   const markReadTimersRef = useRef<Record<string, number>>({});
 
   const serializeMessage = useCallback((message: Message) => ({
@@ -153,6 +130,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    if (!socket || !socket.connected) return;
+    conversations.forEach((conversation) => {
+      if (joinedConversationsRef.current.has(conversation.id)) return;
+      emit('conversation:join', conversation.id);
+      joinedConversationsRef.current.add(conversation.id);
+    });
+    const activeId = activeConversationIdRef.current;
+    if (activeId && !joinedConversationsRef.current.has(activeId)) {
+      emit('conversation:join', activeId);
+      joinedConversationsRef.current.add(activeId);
+    }
+  }, [conversations, socket, emit]);
 
   useEffect(() => {
     const cached = safeStorage.get(STORAGE_CONVERSATIONS_KEY);
@@ -238,8 +229,40 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     loadMessages();
-    emit('conversation:join', activeConversation.id);
-  }, [activeConversation, normalizeMessage, emit, markAsRead, persistMessages]);
+    if (socket?.connected) {
+      emit('conversation:join', activeConversation.id);
+      joinedConversationsRef.current.add(activeConversation.id);
+    }
+  }, [activeConversation, normalizeMessage, emit, markAsRead, persistMessages, socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleConnect = () => {
+      joinedConversationsRef.current.clear();
+      const conversationIds = new Set(
+        conversationsRef.current.map(conversation => conversation.id)
+      );
+      if (activeConversationIdRef.current) {
+        conversationIds.add(activeConversationIdRef.current);
+      }
+      conversationIds.forEach((conversationId) => {
+        emit('conversation:join', conversationId);
+        joinedConversationsRef.current.add(conversationId);
+      });
+    };
+    const handleDisconnect = () => {
+      joinedConversationsRef.current.clear();
+    };
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    if (socket.connected) {
+      handleConnect();
+    }
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, [socket, emit]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!activeConversation || isLoadingOlder || !hasMoreMessages) return 0;
@@ -248,7 +271,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingOlder(true);
     try {
       const data = await apiFetch<{ messages: Message[] }>(
-        `/api/conversations/${activeConversation.id}/messages?limit=${messagePageSizeRef.current}&before=${encodeURIComponent(oldest.timestamp.toISOString())}`
+        `/api/conversations/${activeConversation.id}/messages?limit=${messagePageSizeRef.current}&beforeId=${encodeURIComponent(oldest.id)}`
       );
       const normalized = data.messages.map(normalizeMessage);
       if (normalized.length === 0) {
@@ -274,6 +297,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!socket) return;
     const flushQueuedMessages = () => {
+      if (isFlushingRef.current) return;
+      isFlushingRef.current = true;
       flushMessagesRef.current = null;
       const queue = messageQueueRef.current;
       messageQueueRef.current = {};
@@ -339,13 +364,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (hasMissingConversation) {
         refreshConversations();
       }
+
+      if (Object.keys(messageQueueRef.current).length > 0) {
+        flushMessagesRef.current = window.requestAnimationFrame(flushQueuedMessages);
+      } else {
+        isFlushingRef.current = false;
+      }
     };
 
     const queueMessage = (message: Message) => {
       const list = messageQueueRef.current[message.conversationId] || [];
       list.push(message);
       messageQueueRef.current[message.conversationId] = list;
-      if (flushMessagesRef.current) return;
+      if (flushMessagesRef.current || isFlushingRef.current) return;
       flushMessagesRef.current = window.requestAnimationFrame(flushQueuedMessages);
     };
 
@@ -355,18 +386,29 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const handleTyping = (indicator: TypingIndicator) => {
-      if (indicator.userId === user?.id) return;
+      console.log('[ChatContext] Received typing:indicator', indicator);
+      if (indicator.userId === user?.id) {
+        console.log('[ChatContext] Ignoring own typing indicator');
+        return;
+      }
       setTypingIndicators(prev => {
         const exists = prev.some(t => t.userId === indicator.userId && t.conversationId === indicator.conversationId);
-        if (exists) return prev;
+        if (exists) {
+          console.log('[ChatContext] Typing indicator already exists');
+          return prev;
+        }
+        console.log('[ChatContext] Adding typing indicator', [...prev, indicator]);
         return [...prev, indicator];
       });
     };
 
     const handleTypingStop = (payload: { conversationId: string; userId: string }) => {
-      setTypingIndicators(prev =>
-        prev.filter(t => !(t.conversationId === payload.conversationId && t.userId === payload.userId))
-      );
+      console.log('[ChatContext] Received typing:stop', payload);
+      setTypingIndicators(prev => {
+        const filtered = prev.filter(t => !(t.conversationId === payload.conversationId && t.userId === payload.userId));
+        console.log('[ChatContext] Typing indicators after stop:', filtered);
+        return filtered;
+      });
     };
 
     const handleReactionUpdate = (payload: { messageId: string; reactions: MessageReaction[] }) => {
@@ -434,15 +476,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.cancelAnimationFrame(flushMessagesRef.current);
         flushMessagesRef.current = null;
       }
-      off('message:new');
-      off('typing:indicator');
-      off('typing:stop');
-      off('reaction:update');
-      off('presence:update');
-      off('conversation:created');
-      off('conversation:updated');
+      off('message:new', handleNewMessage);
+      off('typing:indicator', handleTyping);
+      off('typing:stop', handleTypingStop);
+      off('reaction:update', handleReactionUpdate);
+      off('presence:update', handlePresenceUpdate);
+      off('conversation:created', handleConversationCreated);
+      off('conversation:updated', handleConversationUpdated);
     };
-  }, [socket, on, off, normalizeMessage, user?.id, refreshConversations, emit, persistMessages, scheduleMarkAsRead]);
+  }, [
+    socket,
+    on,
+    off,
+    normalizeMessage,
+    normalizeReactions,
+    user?.id,
+    refreshConversations,
+    emit,
+    persistMessages,
+    scheduleMarkAsRead,
+  ]);
 
   const handleSetActiveConversation = useCallback((conversation: Conversation | null) => {
     setActiveConversation(conversation);
@@ -454,11 +507,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const sendMessage = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text') => {
     if (!activeConversation || !content.trim()) return;
+    const clientMessageId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const payload = {
       conversationId: activeConversation.id,
       content,
       type,
       replyToId: replyToMessage?.id,
+      clientMessageId,
     };
     if (socket?.connected) {
       socket.emit('message:send', payload, (response: { message?: Message; error?: string }) => {
@@ -614,12 +671,4 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </ChatContext.Provider>
   );
-};
-
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (context === undefined) {
-    throw new Error('useChat must be used within a ChatProvider');
-  }
-  return context;
 };

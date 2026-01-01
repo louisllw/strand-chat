@@ -1,4 +1,4 @@
-import { useChat } from '@/contexts/ChatContext';
+import { useChat } from '@/contexts/useChat';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserAvatar } from './UserAvatar';

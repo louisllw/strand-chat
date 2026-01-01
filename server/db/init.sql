@@ -87,3 +87,5 @@ create index if not exists idx_message_reads_user on message_reads (user_id);
 create index if not exists idx_messages_conversation_sender_created_at on messages (conversation_id, sender_id, created_at);
 create index if not exists idx_conversation_members_user_hidden on conversation_members (user_id, hidden_at);
 create index if not exists idx_conversation_members_conversation_hidden on conversation_members (conversation_id, hidden_at);
+create index if not exists idx_conversation_members_user_active on conversation_members (user_id) where hidden_at is null;
+create index if not exists idx_conversation_members_conversation_active on conversation_members (conversation_id) where hidden_at is null;

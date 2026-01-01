@@ -12,7 +12,7 @@ const defaultEnv = {
   DATABASE_URL: 'postgres://strand:strand_password@db:5432/strand_messenger',
   JWT_SECRET: 'change_me_in_production',
   COOKIE_NAME: 'strand_auth',
-  CLIENT_ORIGIN: 'http://localhost:8080,http://localhost:5173',
+  CLIENT_ORIGIN: 'http://localhost:8080,http://localhost:5173,http://192.168.1.116:8080',
 };
 
 Object.entries(defaultEnv).forEach(([key, value]) => {
