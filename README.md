@@ -20,15 +20,15 @@ services:
     image: louisllw/strand-chat-db:latest
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
-      POSTGRES_USER: ${POSTGRES_USER:-strand}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
+      - POSTGRES_DB=strand_chat
+      - POSTGRES_USER=strand
+      - POSTGRES_PASSWORD
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-strand} -d ${POSTGRES_DB:-strand_chat}"]
+      test: ["CMD-SHELL", "pg_isready -U strand -d strand_chat"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -37,13 +37,13 @@ services:
     image: louisllw/strand-chat-server:latest
     restart: unless-stopped
     environment:
-      PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
-      REDIS_URL: ${REDIS_URL:-redis://strand-redis:6379}
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
-      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-https://strand.chat}
+      - PORT=3001
+      - DATABASE_URL
+      - REDIS_URL=redis://strand-redis:6379
+      - JWT_SECRET
+      - TRUST_PROXY=1
+      - COOKIE_NAME=strand_auth
+      - CLIENT_ORIGIN=https://strand.chat
     depends_on:
       strand-db:
         condition: service_healthy
@@ -85,23 +85,20 @@ volumes:
   redis_data:
 ```
 
-2) In the Stack environment variables section, paste this block (edit as needed):
+2) Add this secrets block in the Stack environment variables section:
 
 ```
-POSTGRES_DB=strand_chat
-POSTGRES_USER=strand
 POSTGRES_PASSWORD=strand_password
-NODE_ENV=production
-PORT=3001
 DATABASE_URL=postgres://strand:strand_password@strand-db:5432/strand_chat
-REDIS_URL=redis://strand-redis:6379
 JWT_SECRET=change_me_in_production
-TRUST_PROXY=1
-COOKIE_NAME=strand_auth
-CLIENT_ORIGIN=https://your.domain.com
 ```
 
-3) Deploy the stack.
+Portainer accepts this `.env`-style `KEY=VALUE` format.
+Keep `DATABASE_URL` in sync with `POSTGRES_PASSWORD`.
+
+3) Edit the non-secret values directly in the stack compose (above) as needed.
+
+4) Deploy the stack.
 
 Open:
 - Frontend: `http://localhost:8080`
@@ -121,23 +118,19 @@ Notes:
 ## Quick start (Docker Compose)
 
 1) Copy `docker-compose.yml` from the repo.
-2) Create a `.env` file next to it:
+2) Create a `.env` file next to it with your secrets:
 
 ```
-POSTGRES_DB=strand_chat
-POSTGRES_USER=strand
 POSTGRES_PASSWORD=strand_password
-NODE_ENV=production
-PORT=3001
-DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat
-REDIS_URL=redis://strand-redis:6379
+DATABASE_URL=postgres://strand:strand_password@strand-db:5432/strand_chat
 JWT_SECRET=change_me_in_production
-TRUST_PROXY=1
-COOKIE_NAME=strand_auth
-CLIENT_ORIGIN=https://your.domain.com
 ```
 
-3) Start:
+Keep `DATABASE_URL` in sync with `POSTGRES_PASSWORD`.
+
+3) Edit the non-secret values directly in `docker-compose.yml` as needed.
+
+4) Start:
 
 ```
 docker compose up -d
@@ -148,7 +141,7 @@ Open:
 - API health: `http://localhost:3001/api/health`
 
 Notes:
-- If your machine can't run the default Node 25 images, set `DOCKER_DEFAULT_PLATFORM` to match your CPU (e.g. `linux/arm64` or `linux/amd64`) and uncomment the `platform` lines in `docker-compose.yml`.
+- If your machine can't run the default Node 25 images, set the `platform` line in `docker-compose.yml` to match your CPU (e.g. `linux/arm64` or `linux/amd64`).
 
 ## Local dev (Node + Postgres)
 
@@ -202,7 +195,7 @@ To rotate it manually:
 openssl rand -hex 32
 ```
 
-Set the new value in your stack env and restart the `server` service.
+Set the new value in your stack env (Portainer) or `.env` (Compose) and restart the `server` service.
 If you previously relied on the auto-generated file, delete `/data/jwt_secret` from the `server_data` volume to force a new one on next boot.
 
 ## Environment variables
@@ -215,7 +208,7 @@ Required in production:
 Common defaults:
 - `NODE_ENV`: default `production` in Docker
 - `PORT`: default `3001`
-- `TRUST_PROXY`: default unset (set to `1` behind a proxy)
+- `TRUST_PROXY`: default `1` (set to `0` if not behind a proxy)
 - `COOKIE_NAME`: default `strand_auth`
 - `CSRF_COOKIE_NAME`: default `strand_csrf`
 - `REDIS_URL`: default `redis://strand-redis:6379` in Docker

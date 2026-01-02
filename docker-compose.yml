@@ -3,15 +3,15 @@ services:
     image: louisllw/strand-chat-db:latest
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
-      POSTGRES_USER: ${POSTGRES_USER:-strand}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
+      - POSTGRES_DB=strand_chat
+      - POSTGRES_USER=strand
+      - POSTGRES_PASSWORD
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-strand} -d ${POSTGRES_DB:-strand_chat}"]
+      test: ["CMD-SHELL", "pg_isready -U strand -d strand_chat"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -24,18 +24,18 @@ services:
   strand-server:
     image: louisllw/strand-chat-server:latest
     restart: unless-stopped
-    # If Node 25 images don't match your CPU, set DOCKER_DEFAULT_PLATFORM
+    # If Node 25 images don't match your CPU, set platform explicitly
     # e.g. linux/arm64 or linux/amd64.
-    # platform: ${DOCKER_DEFAULT_PLATFORM}
+    # platform: linux/arm64
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
-      REDIS_URL: ${REDIS_URL:-redis://strand-redis:6379}
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
-      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL
+      - REDIS_URL=redis://strand-redis:6379
+      - JWT_SECRET
+      - TRUST_PROXY=1
+      - COOKIE_NAME=strand_auth
+      - CLIENT_ORIGIN=http://localhost:8080
     depends_on:
       strand-db:
         condition: service_healthy
@@ -59,9 +59,9 @@ services:
   strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
-    # If Node 25 images don't match your CPU, set DOCKER_DEFAULT_PLATFORM
+    # If Node 25 images don't match your CPU, set platform explicitly
     # e.g. linux/arm64 or linux/amd64.
-    # platform: ${DOCKER_DEFAULT_PLATFORM}
+    # platform: linux/arm64
     depends_on:
       strand-server:
         condition: service_started
