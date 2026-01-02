@@ -40,7 +40,8 @@ export const csrf = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   await logoutUser(req.user!.userId);
-  res.clearCookie(COOKIE_NAME, { path: '/' });
+  const { maxAge: _maxAge, ...cookieOptions } = authCookieOptions();
+  res.clearCookie(COOKIE_NAME, cookieOptions);
   res.json({ ok: true });
 };
 
