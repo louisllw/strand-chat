@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.0.5
+
+- Added migration runner with numbered SQL files and startup execution.
+- Added backend integration tests for auth and chat flows, plus new unit tests.
+- Added frontend testing with Vitest + RTL and coverage scripts.
+- Improved Docker defaults and docs for Portainer, local/proxy HTTPS, and healthchecks.
+- Added CSP and secure-cookie logging, plus env validation warnings.
+
 ## v0.0.4
 
 - Split chat context into focused providers to reduce UI re-renders.
