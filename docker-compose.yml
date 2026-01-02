@@ -59,6 +59,7 @@ services:
   strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
+    user: "0:0"
     # If Node 25 images don't match your CPU, set platform explicitly
     # e.g. linux/arm64 or linux/amd64.
     # platform: linux/arm64
