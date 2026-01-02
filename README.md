@@ -15,58 +15,62 @@ Self-hosted, real-time chat with Postgres + Socket.IO.
 1) Create a new Stack and paste this compose:
 
 ```yaml
+version: "3.8"
+
 services:
-  db:
+  strand-db:
     image: louisllw/strand-chat-db:latest
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
+      POSTGRES_USER: ${POSTGRES_USER:-strand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-strand} -d ${POSTGRES_DB:-strand_chat}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  server:
+  strand-server:
     image: louisllw/strand-chat-server:latest
     restart: unless-stopped
     environment:
-      PORT: ${PORT}
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      TRUST_PROXY: ${TRUST_PROXY}
-      COOKIE_NAME: ${COOKIE_NAME}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
+      PORT: ${PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-https://strand.chat}
     depends_on:
-      - db
+      strand-db:
+        condition: service_healthy
     ports:
       - "3001:3001"
     volumes:
       - server_data:/data
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)process.exit(1);}).catch(()=>process.exit(1))"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
-  web:
+  strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
     depends_on:
-      - server
+      strand-server:
+        condition: service_started
     ports:
       - "8080:80"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
 volumes:
   db_data:
@@ -81,7 +85,7 @@ POSTGRES_USER=strand
 POSTGRES_PASSWORD=strand_password
 NODE_ENV=production
 PORT=3001
-DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat
+DATABASE_URL=postgres://strand:strand_password@strand-db:5432/strand_chat
 JWT_SECRET=change_me_in_production
 TRUST_PROXY=1
 COOKIE_NAME=strand_auth

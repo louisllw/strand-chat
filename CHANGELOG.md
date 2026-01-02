@@ -7,6 +7,8 @@
 - Added frontend testing with Vitest + RTL and coverage scripts.
 - Improved Docker defaults and docs for Portainer, local/proxy HTTPS, and healthchecks.
 - Added CSP and secure-cookie logging, plus env validation warnings.
+- Renamed Docker services to `strand-web`, `strand-server`, and `strand-db`.
+- Updated Docker healthchecks and defaults to be more resilient in Portainer.
 
 ## v0.0.4
 

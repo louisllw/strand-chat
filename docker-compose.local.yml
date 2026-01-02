@@ -1,17 +1,17 @@
 services:
-  db:
+  strand-db:
     build:
       context: server/db
       dockerfile: Dockerfile
     image: louisllw/strand-chat-db:latest
 
-  server:
+  strand-server:
     build:
       context: server
       dockerfile: Dockerfile
     image: louisllw/strand-chat-server:latest
 
-  web:
+  strand-web:
     build:
       context: .
       dockerfile: Dockerfile
