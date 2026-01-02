@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/strand-chat
+  WEB_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/strand-chat-web
+  SERVER_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/strand-chat-server
+  DB_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/strand-chat-db
 
 jobs:
   build-and-push:
@@ -27,20 +29,56 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
+      - name: Extract web Docker metadata
+        id: meta-web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ env.WEB_IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
 
-      - name: Build and push
+      - name: Build and push web image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+
+      - name: Extract server Docker metadata
+        id: meta-server
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.SERVER_IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v5
+        with:
+          context: server
+          file: server/Dockerfile
+          push: true
+          tags: ${{ steps.meta-server.outputs.tags }}
+          labels: ${{ steps.meta-server.outputs.labels }}
+
+      - name: Extract DB Docker metadata
+        id: meta-db
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DB_IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push DB image
+        uses: docker/build-push-action@v5
+        with:
+          context: server/db
+          file: server/db/Dockerfile
+          push: true
+          tags: ${{ steps.meta-db.outputs.tags }}
+          labels: ${{ steps.meta-db.outputs.labels }}

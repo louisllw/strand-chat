@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15-alpine
+    image: louisllw/strand-chat-db:latest
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
@@ -8,7 +8,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./server/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -18,9 +17,7 @@ services:
       retries: 5
 
   server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    image: louisllw/strand-chat-server:latest
     restart: unless-stopped
     environment:
       PORT: ${PORT:-3001}
@@ -42,9 +39,7 @@ services:
       retries: 3
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: louisllw/strand-chat-web:latest
     restart: unless-stopped
     depends_on:
       - server

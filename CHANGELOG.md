@@ -12,6 +12,7 @@
 - Added periodic cleanup/sweeps for socket connection counts and message dedup cache.
 - Hardened production error logging with error IDs and reduced socket auth metadata.
 - Expanded deployment documentation for Caddy, Nginx, and Cloudflared.
+- Added Docker Hub images for web, server, and database, plus a Portainer-ready stack example.
 
 ## v0.0.3
 

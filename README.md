@@ -64,7 +64,7 @@ This setup runs Postgres + API + web via Docker. It also serves the frontend on 
 The images include sensible defaults for local testing, so you can launch the stack without any configuration:
 
 ```
-docker compose up -d --build
+docker compose up -d
 ```
 
 The defaults map to:
@@ -102,7 +102,7 @@ Set these values:
 ### 3) Start the stack
 
 ```
-docker compose up -d --build
+docker compose up -d
 ```
 
 Open:
@@ -112,14 +112,61 @@ Open:
 ### Portainer
 
 In Portainer, create a new Stack and paste the contents of `docker-compose.yml`.
-Then add the same root `.env` values in the Portainer UI (or create them in the stack env section).
+You can override any config in the stack editor or the stack env section.
+
+Example Portainer stack:
+
+```yaml
+services:
+  db:
+    image: louisllw/strand-chat-db:latest
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
+      POSTGRES_USER: ${POSTGRES_USER:-strand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  server:
+    image: louisllw/strand-chat-server:latest
+    restart: unless-stopped
+    environment:
+      PORT: ${PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@db:5432/strand_chat}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
+    depends_on:
+      - db
+    ports:
+      - "3001:3001"
+    volumes:
+      - server_data:/data
+
+  web:
+    image: louisllw/strand-chat-web:latest
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+
+volumes:
+  db_data:
+  server_data:
+```
+
+Cloudflare/Tunnel note: if you're serving the web app at `https://strand.chat`,
+set `CLIENT_ORIGIN=https://strand.chat` in the stack env section so CORS matches.
 
 ## Local checks
 
 - Lint: `npm run lint`
 - Frontend build: `npm run build`
 - Server tests: `node --test server/tests/*.test.js`
-- Docker Compose (smoke): `docker compose up -d --build` then open `http://localhost:8080`
+- Docker Compose (smoke): `docker compose up -d` then open `http://localhost:8080`
 
 ## Environment variables
 
