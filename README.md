@@ -15,8 +15,6 @@ Self-hosted, real-time chat with Postgres + Socket.IO.
 1) Create a new Stack and paste this compose:
 
 ```yaml
-version: "3.8"
-
 services:
   strand-db:
     image: louisllw/strand-chat-db:latest

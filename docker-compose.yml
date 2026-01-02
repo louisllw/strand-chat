@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   strand-db:
     image: louisllw/strand-chat-db:latest
