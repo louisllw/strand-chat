@@ -9,7 +9,7 @@
 - Added CSP and secure-cookie logging, plus env validation warnings.
 - Renamed Docker services to `strand-web`, `strand-server`, and `strand-db`.
 - Updated Docker healthchecks and defaults to be more resilient in Portainer.
-- Added multi-arch Docker builds (amd64, arm64, arm/v7) for Apple Silicon and Raspberry Pi.
+- Added multi-arch Docker builds (amd64, arm64; server/db also arm/v7) for Apple Silicon and Raspberry Pi.
 
 ## v0.0.4
 
