@@ -1,0 +1,367 @@
+openapi: 3.0.3
+info:
+  title: Strand Chat API
+  version: "1.0"
+servers:
+  - url: http://localhost:3001/api
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: strand_auth
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+      required:
+        - error
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        senderId:
+          type: string
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+paths:
+  /auth/register:
+    post:
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [username, email, password]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+  /auth/logout:
+    post:
+      summary: Logout
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /auth/me:
+    get:
+      summary: Current user
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+  /auth/refresh:
+    post:
+      summary: Refresh auth cookie
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+  /auth/csrf:
+    get:
+      summary: Fetch CSRF token
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  csrfToken:
+                    type: string
+  /users/username-availability:
+    get:
+      summary: Check username availability
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: username
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+  /users/me:
+    patch:
+      summary: Update current user
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+  /users/me/emoji-recents:
+    get:
+      summary: List recent emojis
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+    post:
+      summary: Save recent emoji
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emoji:
+                  type: string
+              required: [emoji]
+  /users/{id}:
+    get:
+      summary: Get public user profile
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /conversations:
+    get:
+      summary: List conversations
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create conversation
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+  /conversations/{id}/messages:
+    get:
+      summary: List messages
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: beforeId
+          in: query
+          schema:
+            type: string
+    post:
+      summary: Send message
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+  /conversations/{id}/read:
+    post:
+      summary: Mark conversation as read
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /conversations/direct:
+    post:
+      summary: Create direct conversation
+      security:
+        - cookieAuth: []
+  /conversations/group:
+    post:
+      summary: Create group conversation
+      security:
+        - cookieAuth: []
+  /conversations/{id}/members:
+    post:
+      summary: Add conversation members
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /conversations/{id}/leave:
+    post:
+      summary: Leave conversation
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /conversations/{id}:
+    delete:
+      summary: Delete conversation
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /messages/{id}/reactions:
+    post:
+      summary: Toggle reaction
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /ready:
+    get:
+      summary: Readiness check
+      responses:
+        "200":
+          description: OK

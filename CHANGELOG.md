@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.0.6
+
+- Migrated server to TypeScript with strict config and updated build/test pipeline.
+- Added structured logging, error codes, and safer JWT secret handling.
+- Added stateful CSRF protection and auth session refresh flow.
+- Added optional Redis-backed rate limits/message dedup and socket constants.
+- Added cursor-based conversation pagination and OpenAPI schema updates.
+- Improved API client error handling (global 401 + retries).
+- Split chat context into focused providers and memoized hot paths.
+- Debounced chat localStorage writes and refined message bubble rendering.
+- Added typed Socket.IO event map for client handlers.
+- Expanded backend/controller/service tests and frontend RTL coverage.
+- Hardened Docker runtime (non-root user, resource limits) and docs updates.
+
 ## v0.0.5
 
 - Added migration runner with numbered SQL files and startup execution.

@@ -80,7 +80,9 @@ const AppRoutes = () => {
         path="/chat"
         element={
           <ProtectedRoute>
-            <Chat />
+            <ChatProvider>
+              <Chat />
+            </ChatProvider>
           </ProtectedRoute>
         }
       />
@@ -110,15 +112,13 @@ const App = () => (
     <ThemeProvider>
       <SocketProvider>
         <AuthProvider>
-          <ChatProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <AppRoutes />
-              </BrowserRouter>
-            </TooltipProvider>
-          </ChatProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
         </AuthProvider>
       </SocketProvider>
     </ThemeProvider>

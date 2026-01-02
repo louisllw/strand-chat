@@ -20,7 +20,7 @@ fi
 
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "Running database migrations..."
-  node /app/db/migrate.js
+  node /app/dist/db/migrate.js
 fi
 
 exec "$@"

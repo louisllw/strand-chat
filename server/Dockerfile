@@ -1,11 +1,17 @@
 FROM node:25-alpine
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 COPY . .
+RUN npm run build
+RUN npm prune --omit=dev
+ENV NODE_ENV=production
+RUN addgroup -S app && adduser -S app -G app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+RUN chown -R app:app /app /entrypoint.sh
+USER app
 EXPOSE 3001
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["npm", "start"]

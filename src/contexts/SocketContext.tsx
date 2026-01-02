@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { getSocketUrl } from '@/lib/api';
-import { SocketContext } from '@/contexts/socket-context';
+import { SocketContext, type SocketContextType, type StrandSocket } from '@/contexts/socket-context';
+import { toast } from '@/hooks/use-toast';
 
-const socket = io(getSocketUrl(), {
+const socket: StrandSocket = io(getSocketUrl(), {
   withCredentials: true,
   autoConnect: false,
 });
@@ -28,13 +29,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error('[socket] connect_error', error.message);
       }
     };
+    const handleSocketError = (payload: { event?: string; message?: string }) => {
+      const message = payload?.message || 'Socket request failed';
+      toast({
+        title: 'Socket error',
+        description: message,
+        variant: 'destructive',
+      });
+    };
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
+    socket.on('error', handleSocketError);
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('connect_error', handleConnectError);
+      socket.off('error', handleSocketError);
       socket.disconnect();
     };
   }, []);
@@ -83,15 +94,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [idleTimeoutMs, isConnected]);
 
-  const emit = (event: string, data: unknown) => {
-    socket.emit(event, data);
+  const emit: SocketContextType['emit'] = (
+    event,
+    ...args
+  ) => {
+    socket.emit(event, ...args);
   };
 
-  const on = (event: string, callback: (data: unknown) => void) => {
+  const on: SocketContextType['on'] = (
+    event,
+    callback
+  ) => {
     socket.on(event, callback);
   };
 
-  const off = (event: string, callback: (data: unknown) => void) => {
+  const off: SocketContextType['off'] = (
+    event,
+    callback
+  ) => {
     socket.off(event, callback);
   };
 

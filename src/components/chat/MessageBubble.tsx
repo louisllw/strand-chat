@@ -34,7 +34,7 @@ const highlightMentions = (text: string) => {
   });
 };
 
-export const MessageBubble = (props: MessageBubbleProps) => {
+const MessageBubbleComponent = (props: MessageBubbleProps) => {
   const {
     message,
     isSent,
@@ -303,3 +303,61 @@ export const MessageBubble = (props: MessageBubbleProps) => {
     </div>
   );
 };
+
+const areMessageReactionsEqual = (prev?: MessageReaction[], next?: MessageReaction[]) => {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  if (prev.length !== next.length) return false;
+  return prev.every((reaction, index) => {
+    const other = next[index];
+    if (!other) return false;
+    if (
+      reaction.emoji !== other.emoji
+      || reaction.count !== other.count
+      || reaction.reactedByMe !== other.reactedByMe
+    ) {
+      return false;
+    }
+    const prevNames = reaction.usernames;
+    const nextNames = other.usernames;
+    if (!prevNames && !nextNames) return true;
+    if (!prevNames || !nextNames) return false;
+    if (prevNames.length !== nextNames.length) return false;
+    return prevNames.every((name, nameIndex) => name === nextNames[nameIndex]);
+  });
+};
+
+const areMessagesEqual = (prev: Message, next: Message) => {
+  if (prev === next) return true;
+  if (prev.id !== next.id) return false;
+  if (prev.read !== next.read) return false;
+  if (prev.type !== next.type) return false;
+  if (prev.content !== next.content) return false;
+  if (prev.attachmentUrl !== next.attachmentUrl) return false;
+  if (prev.timestamp.getTime() !== next.timestamp.getTime()) return false;
+  const prevReply = prev.replyTo;
+  const nextReply = next.replyTo;
+  if (!prevReply && !nextReply) {
+    return areMessageReactionsEqual(prev.reactions, next.reactions);
+  }
+  if (!prevReply || !nextReply) return false;
+  if (
+    prevReply.id !== nextReply.id
+    || prevReply.content !== nextReply.content
+    || prevReply.senderId !== nextReply.senderId
+  ) {
+    return false;
+  }
+  return areMessageReactionsEqual(prev.reactions, next.reactions);
+};
+
+export const MessageBubble = React.memo(
+  MessageBubbleComponent,
+  (prev, next) => (
+    prev.isSent === next.isSent
+    && prev.senderName === next.senderName
+    && prev.isHighlighted === next.isHighlighted
+    && prev.isSelected === next.isSelected
+    && areMessagesEqual(prev.message, next.message)
+  )
+);

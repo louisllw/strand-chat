@@ -39,6 +39,7 @@ services:
     environment:
       PORT: ${PORT:-3001}
       DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
+      REDIS_URL: ${REDIS_URL:-redis://strand-redis:6379}
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
@@ -70,9 +71,18 @@ services:
       timeout: 10s
       retries: 5
 
+  strand-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+
 volumes:
   db_data:
   server_data:
+  redis_data:
+  redis_data:
 ```
 
 2) In the Stack environment variables section, paste this block (edit as needed):
@@ -84,6 +94,7 @@ POSTGRES_PASSWORD=strand_password
 NODE_ENV=production
 PORT=3001
 DATABASE_URL=postgres://strand:strand_password@strand-db:5432/strand_chat
+REDIS_URL=redis://strand-redis:6379
 JWT_SECRET=change_me_in_production
 TRUST_PROXY=1
 COOKIE_NAME=strand_auth
@@ -100,6 +111,7 @@ Notes:
 - If you are using Cloudflare Tunnel, set `CLIENT_ORIGIN` to your real domain (e.g. `https://strand.chat`).
 - For public deployments, set a real `JWT_SECRET` and `POSTGRES_PASSWORD`.
 - You can remove the `5432:5432` port mapping if you do not need direct DB access.
+- Resource limits are defined in `docker-compose.yml` under `deploy.resources.limits` (applies in Swarm/Portainer stacks).
 - Changing `POSTGRES_PASSWORD` only affects new databases. If the `db_data` volume already exists, update the DB user password inside Postgres (or delete the volume to re-init).
 - Secure cookies are auto-enabled when all `CLIENT_ORIGIN` values start with `https://`. If any origin is `http://`, cookies are non-secure for local testing.
 - The bundled Caddyfile redirects HTTP to HTTPS unless the client IP is local/private. Local LAN access and `http://localhost:8080` stay accessible.
@@ -118,6 +130,7 @@ POSTGRES_PASSWORD=strand_password
 NODE_ENV=production
 PORT=3001
 DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat
+REDIS_URL=redis://strand-redis:6379
 JWT_SECRET=change_me_in_production
 TRUST_PROXY=1
 COOKIE_NAME=strand_auth
@@ -159,7 +172,10 @@ cp .env.example .env
 # Generate a JWT secret if you need one:
 # openssl rand -hex 32
 
-# 4) Initialize database (run from repo root)
+# 4) Build and initialize database (run from repo root)
+cd ..
+cd server
+npm run build
 cd ..
 psql "postgres://USER:PASSWORD@HOST:5432/DB_NAME" -f server/db/init.sql
 
@@ -191,16 +207,18 @@ If you previously relied on the auto-generated file, delete `/data/jwt_secret` f
 
 ## Environment variables
 
-Required in most setups:
-- `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME`
-- `JWT_SECRET`: random string used to sign login tokens (keep it private)
-- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs
+Required in production:
+- `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME` (no default)
+- `JWT_SECRET`: random string used to sign login tokens (no default)
+- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs (default `http://localhost:5173`)
 
-Common:
-- `NODE_ENV`: set to `production` in Docker
-- `PORT`: defaults to `3001`
-- `TRUST_PROXY`: set to `1` when running behind Caddy/Nginx/Cloudflared
-- `COOKIE_NAME`: defaults to `strand_auth`
+Common defaults:
+- `NODE_ENV`: default `production` in Docker
+- `PORT`: default `3001`
+- `TRUST_PROXY`: default unset (set to `1` behind a proxy)
+- `COOKIE_NAME`: default `strand_auth`
+- `CSRF_COOKIE_NAME`: default `strand_csrf`
+- `REDIS_URL`: default `redis://strand-redis:6379` in Docker
 
 Optional tuning:
 - `LOG_DB_TIMINGS`: set to `true` to log per-query timings

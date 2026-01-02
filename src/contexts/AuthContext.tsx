@@ -1,9 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { User, AuthState } from '@/types';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, AUTH_UNAUTHORIZED_EVENT } from '@/lib/api';
 import { useTheme } from '@/contexts/useTheme';
 import { useSocket } from '@/contexts/useSocket';
 import { AuthContext } from '@/contexts/auth-context';
+import { toast } from '@/hooks/use-toast';
+
+const shouldNotifyAuthError = (error: unknown) => {
+  if (!(error instanceof Error)) return true;
+  const message = error.message?.toLowerCase() || '';
+  return !['unauthorized', 'not authenticated'].includes(message);
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { setTheme } = useTheme();
@@ -14,11 +21,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading: true,
   });
   const isRefreshingRef = useRef(false);
+  const isAuthenticatedRef = useRef(false);
+
+  useEffect(() => {
+    isAuthenticatedRef.current = state.isAuthenticated;
+  }, [state.isAuthenticated]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      if (!isAuthenticatedRef.current) return;
+      setState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      toast({
+        title: 'Session expired',
+        description: 'Please sign in again.',
+        variant: 'destructive',
+      });
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, []);
 
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const data = await apiFetch<{ user: User }>('/api/auth/me');
+        const data = await apiFetch<{ user: User }>('/api/auth/refresh', { method: 'POST' });
         if (!data?.user) {
           setState({
             user: null,
@@ -35,7 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.user.theme) {
           setTheme(data.user.theme);
         }
-      } catch {
+      } catch (error) {
+        if (shouldNotifyAuthError(error)) {
+          console.error('[auth] Failed to load session', error);
+          toast({
+            title: 'Unable to load session',
+            description: 'Please sign in again.',
+            variant: 'destructive',
+          });
+        }
         setState(prev => ({ ...prev, isLoading: false }));
       }
     };
@@ -50,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isRefreshingRef.current) return;
       isRefreshingRef.current = true;
       try {
-        const data = await apiFetch<{ user: User }>('/api/auth/me');
+        const data = await apiFetch<{ user: User }>('/api/auth/refresh', { method: 'POST' });
         if (!isMounted) return;
         if (!data?.user) {
           setState(prev => ({
@@ -70,8 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.user.theme) {
           setTheme(data.user.theme);
         }
-      } catch {
-        // ignore refresh errors
+      } catch (error) {
+        if (shouldNotifyAuthError(error)) {
+          console.warn('[auth] Failed to refresh session', error);
+        }
       } finally {
         isRefreshingRef.current = false;
       }
@@ -143,8 +184,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     try {
       await apiFetch('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // Ignore network errors and clear local state anyway.
+    } catch (error) {
+      console.warn('[auth] Logout request failed', error);
     }
     setState({
       user: null,
