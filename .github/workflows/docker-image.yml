@@ -20,7 +20,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     steps:
       - name: Check out code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
@@ -43,7 +43,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push web image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v5
         with:
           context: .
           file: Dockerfile
@@ -62,7 +62,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push server image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v5
         with:
           context: server
           file: server/Dockerfile
@@ -81,7 +81,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push DB image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v5
         with:
           context: server/db
           file: server/db/Dockerfile
