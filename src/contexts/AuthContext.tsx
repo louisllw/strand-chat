@@ -19,6 +19,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadSession = async () => {
       try {
         const data = await apiFetch<{ user: User }>('/api/auth/me');
+        if (!data?.user) {
+          setState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
         setState({
           user: data.user,
           isAuthenticated: true,
@@ -44,6 +52,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const data = await apiFetch<{ user: User }>('/api/auth/me');
         if (!isMounted) return;
+        if (!data?.user) {
+          setState(prev => ({
+            ...prev,
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          }));
+          return;
+        }
         setState(prev => ({
           ...prev,
           user: data.user,
