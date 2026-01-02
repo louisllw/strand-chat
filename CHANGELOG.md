@@ -13,6 +13,7 @@
 - Added typed Socket.IO event map for client handlers.
 - Expanded backend/controller/service tests and frontend RTL coverage.
 - Hardened Docker runtime (non-root user, resource limits) and docs updates.
+- Included SQL migrations in the server image build to support auto-migrate on startup.
 
 ## v0.0.5
 

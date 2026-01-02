@@ -13,6 +13,7 @@ dist-ssr
 coverage
 server/coverage
 *.local
+docker-compose.local.yml
 
 # Editor directories and files
 .vscode/*

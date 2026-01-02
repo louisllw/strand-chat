@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 COPY . .
 RUN npm run build
+RUN mkdir -p /app/dist/db && cp -R /app/db/migrations /app/dist/db/migrations
 RUN npm prune --omit=dev
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app
