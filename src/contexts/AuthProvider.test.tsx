@@ -112,6 +112,7 @@ it("handles unauthorized event by resetting auth and showing toast", async () =>
   await waitFor(() =>
     expect(screen.getByText("authed:test@example.com")).toBeInTheDocument()
   );
+  await waitFor(() => expect(mockSocketConnect).toHaveBeenCalled());
 
   act(() => {
     window.dispatchEvent(new Event("auth:unauthorized"));
