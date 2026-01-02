@@ -31,14 +31,21 @@ export const MessageList = ({ className }: MessageListProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
-  const [unseenCount, setUnseenCount] = useState(0);
+  const [selectionState, setSelectionState] = useState<{
+    conversationId: string | null;
+    messageId: string | null;
+  }>({ conversationId: null, messageId: null });
+  const [lastSeenState, setLastSeenState] = useState<{
+    conversationId: string | null;
+    messageId: string | null;
+  }>({ conversationId: null, messageId: null });
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const isPrependingRef = useRef(false);
   const isAutoScrollingRef = useRef(false);
   const lastViewportHeightRef = useRef<number | null>(null);
   const keyboardInset = useKeyboardInset();
+  const conversationId = activeConversation?.id ?? null;
 
   const getInputHeight = () => {
     if (typeof window === 'undefined') return 0;
@@ -68,9 +75,9 @@ export const MessageList = ({ className }: MessageListProps) => {
     isPrependingRef.current = false;
   }, [hasMoreMessages, isLoadingOlder, loadOlderMessages]);
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
-  };
+  }, []);
 
   const updateScrollState = useCallback(() => {
     const el = containerRef.current;
@@ -79,13 +86,15 @@ export const MessageList = ({ className }: MessageListProps) => {
       loadOlder();
     }
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const isAtBottom = distanceFromBottom < SCROLL_THRESHOLD_PX;
-    isAtBottomRef.current = isAtBottom;
-    if (isAtBottom) {
-      setShowNewMessageIndicator(false);
-      setUnseenCount(0);
+    const nextIsAtBottom = distanceFromBottom < SCROLL_THRESHOLD_PX;
+    const wasAtBottom = isAtBottomRef.current;
+    isAtBottomRef.current = nextIsAtBottom;
+    setIsAtBottom(nextIsAtBottom);
+    const latestMessageId = messages[messages.length - 1]?.id ?? null;
+    if (nextIsAtBottom || wasAtBottom) {
+      setLastSeenState({ conversationId, messageId: latestMessageId });
     }
-  }, [loadOlder]);
+  }, [conversationId, loadOlder, messages, SCROLL_THRESHOLD_PX]);
 
   const jumpToMessage = (messageId: string) => {
     const target = messageRefs.current[messageId];
@@ -97,7 +106,6 @@ export const MessageList = ({ className }: MessageListProps) => {
   };
 
   useEffect(() => {
-    if (isPrependingRef.current) return;
     if (isAtBottomRef.current) {
       isAutoScrollingRef.current = true;
       requestAnimationFrame(() => {
@@ -106,21 +114,8 @@ export const MessageList = ({ className }: MessageListProps) => {
           isAutoScrollingRef.current = false;
         });
       });
-    } else {
-      setShowNewMessageIndicator(true);
-      setUnseenCount(prev => prev + 1);
     }
-  }, [messages]);
-
-  useEffect(() => {
-    if (!activeConversation) {
-      setSelectedMessageId(null);
-    }
-  }, [activeConversation]);
-
-  useEffect(() => {
-    updateScrollState();
-  }, [typingIndicators, updateScrollState]);
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     const handleInputFocus = () => {
@@ -217,6 +212,21 @@ export const MessageList = ({ className }: MessageListProps) => {
   }, []);
 
   const currentUserId = user?.id;
+  const selectedMessageId = selectionState.conversationId === conversationId
+    ? selectionState.messageId
+    : null;
+  const lastSeenMessageId = lastSeenState.conversationId === conversationId
+    ? lastSeenState.messageId
+    : null;
+  const latestMessageId = messages[messages.length - 1]?.id ?? null;
+  const effectiveLastSeenMessageId = isAtBottom ? latestMessageId : lastSeenMessageId;
+  const unseenCount = useMemo(() => {
+    if (!effectiveLastSeenMessageId) return 0;
+    const index = messages.findIndex(message => message.id === effectiveLastSeenMessageId);
+    if (index === -1) return 0;
+    return Math.max(0, messages.length - index - 1);
+  }, [effectiveLastSeenMessageId, messages]);
+  const showNewMessageIndicator = unseenCount > 0 && !isAtBottom;
 
   // Group messages by date
   const groupedMessages = useMemo(() => (
@@ -322,7 +332,11 @@ export const MessageList = ({ className }: MessageListProps) => {
                     onToggleReaction={toggleReaction}
                     isSelected={selectedMessageId === message.id}
                     onSelect={(messageId) => {
-                      setSelectedMessageId(prev => (prev === messageId ? null : messageId));
+                      setSelectionState(prev => {
+                        const isSameConversation = prev.conversationId === conversationId;
+                        const nextId = isSameConversation && prev.messageId === messageId ? null : messageId;
+                        return { conversationId, messageId: nextId };
+                      });
                     }}
                   />
                 </div>

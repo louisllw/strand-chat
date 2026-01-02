@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef, KeyboardEvent } from 'react';
 import { useChatConversations } from '@/contexts/useChatConversations';
 import { useChatMessages } from '@/contexts/useChatMessages';
 import { useSocket } from '@/contexts/useSocket';
@@ -28,6 +28,20 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   const emojiScrollRef = useRef<HTMLDivElement | null>(null);
   const emojiSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const closeEmojiPicker = useCallback(() => {
+    setIsEmojiPickerOpen(false);
+    setEmojiQuery('');
+  }, []);
+
+  const toggleEmojiPicker = useCallback(() => {
+    setIsEmojiPickerOpen(prev => {
+      const next = !prev;
+      if (!next) {
+        setEmojiQuery('');
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -64,18 +78,15 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     if (!isEmojiPickerOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setIsEmojiPickerOpen(false);
+        closeEmojiPicker();
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isEmojiPickerOpen]);
+  }, [closeEmojiPicker, isEmojiPickerOpen]);
 
   useEffect(() => {
-    if (!isEmojiPickerOpen) {
-      setEmojiQuery('');
-      return;
-    }
+    if (!isEmojiPickerOpen) return;
     apiFetch<{ emojis: string[] }>('/api/users/me/emoji-recents')
       .then(data => setRecentEmojis(data.emojis))
       .catch(() => {});
@@ -252,7 +263,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                 <Button
                   variant="icon"
                   size="iconSm"
-                  onClick={() => setIsEmojiPickerOpen(prev => !prev)}
+                  onClick={toggleEmojiPicker}
                 >
                   <Smile className="h-5 w-5" />
                 </Button>
