@@ -10,6 +10,12 @@ Self-hosted, real-time chat with Postgres + Socket.IO.
 - Message pagination (load newest, fetch older on demand)
 - Unread counters cached per conversation
 
+## Requirements
+
+- Docker host (local machine, VPS, NAS, etc.)
+- Optional: Portainer for stack UI
+- Optional: domain + reverse proxy (Caddy/Nginx/Cloudflared)
+
 ## Quick start (Portainer)
 
 1) Create a new Stack and paste this compose:
@@ -32,21 +38,32 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # Remove the port mapping if you do not need direct DB access.
+
+  strand-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
 
   strand-server:
     image: louisllw/strand-chat-server:latest
     restart: unless-stopped
     environment:
+      - NODE_ENV=production
       - PORT=3001
       - DATABASE_URL
       - REDIS_URL=redis://strand-redis:6379
       - JWT_SECRET
       - TRUST_PROXY=1
       - COOKIE_NAME=strand_auth
-      - CLIENT_ORIGIN=https://strand.chat
+      - CLIENT_ORIGIN=https://your.domain.com
     depends_on:
       strand-db:
         condition: service_healthy
+      strand-redis:
+        condition: service_started
     ports:
       - "3001:3001"
     volumes:
@@ -71,17 +88,9 @@ services:
       timeout: 10s
       retries: 5
 
-  strand-redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
-    volumes:
-      - redis_data:/data
-
 volumes:
   db_data:
   server_data:
-  redis_data:
   redis_data:
 ```
 
@@ -95,6 +104,7 @@ JWT_SECRET=change_me_in_production
 
 Portainer accepts this `.env`-style `KEY=VALUE` format.
 Keep `DATABASE_URL` in sync with `POSTGRES_PASSWORD`.
+Those variables are referenced in the compose by name (`POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`).
 
 3) Edit the non-secret values directly in the stack compose (above) as needed.
 
@@ -106,8 +116,8 @@ Open:
 
 Notes:
 - If you are using Cloudflare Tunnel, set `CLIENT_ORIGIN` to your real domain (e.g. `https://strand.chat`).
-- For public deployments, set a real `JWT_SECRET` and `POSTGRES_PASSWORD`.
-- You can remove the `5432:5432` port mapping if you do not need direct DB access.
+- For local-only use, set `CLIENT_ORIGIN=http://localhost:8080`.
+- For public deployments, use a strong `JWT_SECRET` and `POSTGRES_PASSWORD`.
 - Resource limits are defined in `docker-compose.yml` under `deploy.resources.limits` (applies in Swarm/Portainer stacks).
 - Changing `POSTGRES_PASSWORD` only affects new databases. If the `db_data` volume already exists, update the DB user password inside Postgres (or delete the volume to re-init).
 - Secure cookies are auto-enabled when all `CLIENT_ORIGIN` values start with `https://`. If any origin is `http://`, cookies are non-secure for local testing.
@@ -142,16 +152,18 @@ Open:
 
 Notes:
 - If your machine can't run the default Node 25 images, set the `platform` line in `docker-compose.yml` to match your CPU (e.g. `linux/arm64` or `linux/amd64`).
+- After edits, rerun `docker compose up -d` to apply changes.
 
-## Local dev (Node + Postgres)
+## Local dev (advanced: Node + Postgres)
 
 Requirements:
 - Node.js 18+ and npm
 - Postgres 14+
+- Optional: Redis 7 (only needed for caching/features that rely on Redis)
 
 ```sh
 # 1) Clone and install frontend deps
-git clone <YOUR_GIT_URL>
+git clone https://github.com/louisllw/strand-chat
 cd strand-chat
 npm install
 
@@ -160,8 +172,9 @@ cd server
 npm install
 
 # 3) Configure env
-cp .env.example .env
+cp server/.env.example server/.env
 # Edit server/.env with your Postgres connection + JWT secret
+# If you run Redis locally, add: REDIS_URL=redis://localhost:6379
 # Generate a JWT secret if you need one:
 # openssl rand -hex 32
 
@@ -200,18 +213,21 @@ If you previously relied on the auto-generated file, delete `/data/jwt_secret` f
 
 ## Environment variables
 
-Required in production:
-- `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME` (no default)
-- `JWT_SECRET`: random string used to sign login tokens (no default)
-- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs (default `http://localhost:5173`)
+Secrets (set in Portainer stack env or `.env`):
+- `POSTGRES_PASSWORD`: database password
+- `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME`
+- `JWT_SECRET`: random string used to sign login tokens
+
+For local dev, use `server/.env.example` as a starting point.
 
 Common defaults:
-- `NODE_ENV`: default `production` in Docker
-- `PORT`: default `3001`
-- `TRUST_PROXY`: default `1` (set to `0` if not behind a proxy)
-- `COOKIE_NAME`: default `strand_auth`
-- `CSRF_COOKIE_NAME`: default `strand_csrf`
-- `REDIS_URL`: default `redis://strand-redis:6379` in Docker
+- `NODE_ENV`: `production` in Docker
+- `PORT`: `3001`
+- `TRUST_PROXY`: `1` (set to `0` if not behind a proxy)
+- `COOKIE_NAME`: `strand_auth`
+- `CSRF_COOKIE_NAME`: `strand_csrf`
+- `REDIS_URL`: `redis://strand-redis:6379` in Docker
+- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs
 
 Optional tuning:
 - `LOG_DB_TIMINGS`: set to `true` to log per-query timings
@@ -228,7 +244,7 @@ Optional tuning:
 - `SOCKET_TYPING_LIMIT`: socket typing limit per window (default `40`)
 - `SOCKET_TYPING_WINDOW_MS`: window for typing rate limit (default `10000`)
 
-Server JSON payload limit is 30 MB (`server/index.js`).
+Server JSON payload limit is 30 MB (`server/index.ts`).
 
 ## Common setup issues
 
@@ -236,6 +252,7 @@ Server JSON payload limit is 30 MB (`server/index.js`).
 - `relation "users" does not exist`: you did not run `server/db/init.sql` against the correct database.
 - CORS errors: make sure `CLIENT_ORIGIN` includes your frontend URL exactly (including port).
 - `ECONNREFUSED /api/...`: the API server isn’t running or is on a different port.
+- Docker `DATABASE_URL` host: use `strand-db` (not `localhost`) when running in Compose.
 
 ## HTTPS + reverse proxy (Caddy/Nginx/Cloudflared)
 
@@ -245,6 +262,7 @@ Shared requirements:
 - `CLIENT_ORIGIN` must match your frontend URL(s), e.g. `https://chat.example.com`
 - In production, set a strong `JWT_SECRET` (or allow the Docker entrypoint to persist a generated one)
 - If you terminate TLS at Cloudflare, ensure the proxy forwards `X-Forwarded-Proto` and the app trusts the proxy
+- If you are behind a proxy, keep `TRUST_PROXY=1`
 
 ### Caddy (example)
 
@@ -323,13 +341,13 @@ If you want to skip migrations for any reason, set `RUN_MIGRATIONS=false`.
 Backup:
 
 ```
-docker compose exec db pg_dump -U strand strand_chat > backup.sql
+docker compose exec strand-db pg_dump -U strand strand_chat > backup.sql
 ```
 
 Restore:
 
 ```
-docker compose exec -T db psql -U strand strand_chat < backup.sql
+docker compose exec -T strand-db psql -U strand strand_chat < backup.sql
 ```
 
 ## Project structure
