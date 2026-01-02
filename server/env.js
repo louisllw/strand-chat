@@ -21,6 +21,14 @@ Object.entries(defaultEnv).forEach(([key, value]) => {
   }
 });
 
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL must be set.');
+}
+
 if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET === defaultEnv.JWT_SECRET) {
   throw new Error('JWT_SECRET must be set in production.');
+}
+
+if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL === defaultEnv.DATABASE_URL) {
+  console.warn('Warning: DATABASE_URL is using the default credentials in production.');
 }

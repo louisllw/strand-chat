@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import createConversationsRouter from './routes/conversations.js';
 import createMessagesRouter from './routes/messages.js';
+import { getSecureCookieSetting } from './auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createSocketManager } from './socket/manager.js';
 import { registerSocketHandlers } from './socket/handlers.js';
@@ -32,6 +33,8 @@ const io = new SocketIOServer(server, {
     credentials: true,
   },
 });
+const secureCookies = getSecureCookieSetting();
+console.log(`[auth] secure cookies ${secureCookies ? 'enabled' : 'disabled'}`);
 
 app.use(
   cors({
@@ -40,6 +43,16 @@ app.use(
   })
 );
 app.use(helmet());
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  })
+);
 app.use(express.json({ limit: '30mb' }));
 app.use(cookieParser());
 

@@ -19,6 +19,17 @@ export default defineConfig(() => ({
     },
   },
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
+    globals: true,
+    include: ["src/**/*.test.{ts,tsx}"],
+    exclude: ["server/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

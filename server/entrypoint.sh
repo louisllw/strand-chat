@@ -18,4 +18,9 @@ if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "$DEFAULT_JWT" ]; then
   fi
 fi
 
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+  echo "Running database migrations..."
+  node /app/db/migrate.js
+fi
+
 exec "$@"

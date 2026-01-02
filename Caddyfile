@@ -1,4 +1,6 @@
 :80 {
+	@force_https not client_ip 127.0.0.0/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7
+	redir @force_https https://{host}{uri} permanent
 	handle /api/* {
 		reverse_proxy server:3001
 	}

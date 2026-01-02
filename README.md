@@ -1,24 +1,138 @@
 # Strand Chat
 
-## Project info
-
-Self-hosted real-time chat with Postgres + Socket.IO.
-
-## Docs
-
-- `CONTRIBUTING.md`
-- `API.md`
+Self-hosted, real-time chat with Postgres + Socket.IO.
 
 ## Features
 
 - Direct + group conversations
 - Reactions, replies, typing indicators, presence
 - Profiles with avatar/banner, bio, socials, website
-- Profile image cropping + client-side resize before upload
 - Message pagination (load newest, fetch older on demand)
 - Unread counters cached per conversation
 
-## Step-by-step quick start (self-hosted)
+## Quick start (Portainer)
+
+1) Create a new Stack and paste this compose:
+
+```yaml
+services:
+  db:
+    image: louisllw/strand-chat-db:latest
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    image: louisllw/strand-chat-server:latest
+    restart: unless-stopped
+    environment:
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      TRUST_PROXY: ${TRUST_PROXY}
+      COOKIE_NAME: ${COOKIE_NAME}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
+    depends_on:
+      - db
+    ports:
+      - "3001:3001"
+    volumes:
+      - server_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)process.exit(1);}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    image: louisllw/strand-chat-web:latest
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  db_data:
+  server_data:
+```
+
+2) In the Stack environment variables section, paste this block (edit as needed):
+
+```
+POSTGRES_DB=strand_chat
+POSTGRES_USER=strand
+POSTGRES_PASSWORD=strand_password
+NODE_ENV=production
+PORT=3001
+DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat
+JWT_SECRET=change_me_in_production
+TRUST_PROXY=1
+COOKIE_NAME=strand_auth
+CLIENT_ORIGIN=https://your.domain.com
+```
+
+3) Deploy the stack.
+
+Open:
+- Frontend: `http://localhost:8080`
+- API health: `http://localhost:3001/api/health`
+
+Notes:
+- If you are using Cloudflare Tunnel, set `CLIENT_ORIGIN` to your real domain (e.g. `https://strand.chat`).
+- For public deployments, set a real `JWT_SECRET` and `POSTGRES_PASSWORD`.
+- You can remove the `5432:5432` port mapping if you do not need direct DB access.
+- Changing `POSTGRES_PASSWORD` only affects new databases. If the `db_data` volume already exists, update the DB user password inside Postgres (or delete the volume to re-init).
+- Secure cookies are auto-enabled when all `CLIENT_ORIGIN` values start with `https://`. If any origin is `http://`, cookies are non-secure for local testing.
+- The bundled Caddyfile redirects HTTP to HTTPS unless the client IP is local/private. Local LAN access and `http://localhost:8080` stay accessible.
+- Default behavior is: local HTTP works, and external HTTPS is handled by your proxy/tunnel.
+- If using Cloudflared or another reverse proxy, set `CLIENT_ORIGIN=https://your.domain.com` and `TRUST_PROXY=1` — no Caddy changes needed.
+
+## Quick start (Docker Compose)
+
+1) Copy `docker-compose.yml` from the repo.
+2) Create a `.env` file next to it:
+
+```
+POSTGRES_DB=strand_chat
+POSTGRES_USER=strand
+POSTGRES_PASSWORD=strand_password
+NODE_ENV=production
+PORT=3001
+DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat
+JWT_SECRET=change_me_in_production
+TRUST_PROXY=1
+COOKIE_NAME=strand_auth
+CLIENT_ORIGIN=https://your.domain.com
+```
+
+3) Start:
+
+```
+docker compose up -d
+```
+
+Open:
+- Frontend: `http://localhost:8080`
+- API health: `http://localhost:3001/api/health`
+
+## Local dev (Node + Postgres)
 
 Requirements:
 - Node.js 18+ and npm
@@ -55,128 +169,35 @@ npm run dev
 
 Frontend proxies `/api` and `/socket.io` to `http://localhost:3001` via `vite.config.ts`.
 
-## Docker Compose / Portainer stack
+If you need HTTPS locally (for service workers or clipboard APIs), use a local cert with `mkcert` and enable HTTPS in Vite.
 
-This setup runs Postgres + API + web via Docker. It also serves the frontend on port `8080`.
+## JWT secrets (Docker)
 
-### Quick zero-config test
+If `JWT_SECRET` is missing or still the default, the server auto-generates one and persists it to `/data/jwt_secret` (in the `server_data` volume).
 
-The images include sensible defaults for local testing, so you can launch the stack without any configuration:
-
-```
-docker compose up -d
-```
-
-The defaults map to:
-- `POSTGRES_DB=strand_chat`
-- `POSTGRES_USER=strand`
-- `POSTGRES_PASSWORD=strand_password`
-- `DATABASE_URL=postgres://strand:strand_password@db:5432/strand_chat`
-- `JWT_SECRET=change_me_in_production`
-- `COOKIE_NAME=strand_auth`
-- `CLIENT_ORIGIN=http://localhost:8080,http://localhost:5173`
-
-Warning: these defaults are for local tinkering only. If you expose the stack beyond your machine, change:
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET`
-- `CLIENT_ORIGIN` (to your real frontend URL)
-- Do not expose the stack directly on a public IP without HTTPS. Use Caddy/Nginx/Cloudflared to terminate TLS.
-
-When running via Docker, the API container will auto-generate a `JWT_SECRET` if it is missing or left at the default, then persist it to `/data/jwt_secret` (see the `server_data` volume in `docker-compose.yml`).
-
-### 2) Configure `server/.env`
-
-Copy the example and update it:
+To rotate it manually:
 
 ```
-cp server/.env.example server/.env
+openssl rand -hex 32
 ```
 
-Set these values:
-
-- `DATABASE_URL=postgres://strand:your_password@db:5432/strand_chat`
-- `JWT_SECRET=<random string>`
-- `CLIENT_ORIGIN=http://localhost:8080`
-- `PORT=3001`
-
-### 3) Start the stack
-
-```
-docker compose up -d
-```
-
-Open:
-- Frontend: `http://localhost:8080`
-- API: `http://localhost:3001`
-
-### Portainer
-
-In Portainer, create a new Stack and paste the contents of `docker-compose.yml`.
-You can override any config in the stack editor or the stack env section.
-
-Example Portainer stack:
-
-```yaml
-services:
-  db:
-    image: louisllw/strand-chat-db:latest
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-strand_chat}
-      POSTGRES_USER: ${POSTGRES_USER:-strand}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strand_password}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
-  server:
-    image: louisllw/strand-chat-server:latest
-    restart: unless-stopped
-    environment:
-      PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@db:5432/strand_chat}
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
-      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
-    depends_on:
-      - db
-    ports:
-      - "3001:3001"
-    volumes:
-      - server_data:/data
-
-  web:
-    image: louisllw/strand-chat-web:latest
-    restart: unless-stopped
-    depends_on:
-      - server
-    ports:
-      - "8080:80"
-
-volumes:
-  db_data:
-  server_data:
-```
-
-Cloudflare/Tunnel note: if you're serving the web app at `https://strand.chat`,
-set `CLIENT_ORIGIN=https://strand.chat` in the stack env section so CORS matches.
-
-## Local checks
-
-- Lint: `npm run lint`
-- Frontend build: `npm run build`
-- Server tests: `node --test server/tests/*.test.js`
-- Docker Compose (smoke): `docker compose up -d` then open `http://localhost:8080`
+Set the new value in your stack env and restart the `server` service.
+If you previously relied on the auto-generated file, delete `/data/jwt_secret` from the `server_data` volume to force a new one on next boot.
 
 ## Environment variables
 
-Copy `server/.env.example` to `server/.env` and update:
-
+Required in most setups:
 - `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME`
 - `JWT_SECRET`: random string used to sign login tokens (keep it private)
-- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs, e.g. `http://localhost:8080,http://192.168.1.168:8080`
+- `CLIENT_ORIGIN`: comma-separated list of allowed frontend URLs
+
+Common:
+- `NODE_ENV`: set to `production` in Docker
 - `PORT`: defaults to `3001`
-- `TRUST_PROXY`: set to `1` when running behind Caddy/Nginx/Cloudflared (default `0` unless set)
+- `TRUST_PROXY`: set to `1` when running behind Caddy/Nginx/Cloudflared
+- `COOKIE_NAME`: defaults to `strand_auth`
+
+Optional tuning:
 - `LOG_DB_TIMINGS`: set to `true` to log per-query timings
 - `PG_STATEMENT_TIMEOUT_MS`: query timeout in ms (default `5000`)
 - `DB_RETRY_ATTEMPTS`: retry count for transient read errors (default `2`)
@@ -193,12 +214,6 @@ Copy `server/.env.example` to `server/.env` and update:
 
 Server JSON payload limit is 30 MB (`server/index.js`).
 
-## Images and storage
-
-- Profile avatar/banner fields store a URL or a data URL string in the `users` table.
-- Uploading an image in settings performs client-side cropping and resizing, then saves the data URL.
-- If you want to host media externally, replace the stored value with your CDN/storage URL.
-
 ## Common setup issues
 
 - `database "…" does not exist`: create the database in Postgres first, then run `server/db/init.sql`.
@@ -206,105 +221,16 @@ Server JSON payload limit is 30 MB (`server/index.js`).
 - CORS errors: make sure `CLIENT_ORIGIN` includes your frontend URL exactly (including port).
 - `ECONNREFUSED /api/...`: the API server isn’t running or is on a different port.
 
-## Database migrations (when upgrading)
-
-If you pull updates and see missing column errors, run:
-
-```sql
-alter table conversation_members add column if not exists hidden_at timestamptz;
-alter table conversation_members add column if not exists cleared_at timestamptz;
-update conversation_members
-set cleared_at = hidden_at
-where cleared_at is null and hidden_at is not null;
-
-alter table conversation_members add column if not exists unread_count int not null default 0;
-update conversation_members cm
-set unread_count = sub.unread_count
-from (
-  select m.conversation_id, m.user_id, count(*)::int as unread_count
-  from messages m
-  join conversation_members cm2 on cm2.conversation_id = m.conversation_id
-  where cm2.user_id = m.user_id
-    and cm2.hidden_at is null
-  group by m.conversation_id, m.user_id
-) sub
-where cm.conversation_id = sub.conversation_id and cm.user_id = sub.user_id;
-
-alter table users add column if not exists phone text;
-alter table users add column if not exists bio text;
-alter table users add column if not exists banner_url text;
-alter table users add column if not exists website_url text;
-alter table users add column if not exists social_x text;
-alter table users add column if not exists social_instagram text;
-alter table users add column if not exists social_linkedin text;
-alter table users add column if not exists social_tiktok text;
-alter table users add column if not exists social_youtube text;
-alter table users add column if not exists social_facebook text;
-alter table users add column if not exists social_github text;
-
-alter table messages drop constraint if exists messages_type_check;
-alter table messages
-  add constraint messages_type_check
-  check (type in ('text', 'image', 'file', 'system'));
-```
-
-## Database backups
-
-Backup:
-
-```
-docker compose exec db pg_dump -U strand strand_chat > backup.sql
-```
-
-Restore:
-
-```
-docker compose exec -T db psql -U strand strand_chat < backup.sql
-```
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## Project structure
-
-- `server/` Express + Socket.IO API server
-- `server/db/init.sql` initial schema
-- `src/` React app
-
-## Performance notes
-
-- Conversations are fetched with last message only; messages are paged (default 50).
-- Unread counts are cached in `conversation_members.unread_count`.
-- Client batches incoming messages to reduce UI lag during spikes.
-
-## Production notes
-
-- Set `CLIENT_ORIGIN` to your deployed frontend URL(s).
-- Use HTTPS in production and set secure cookies.
-- Auth endpoints are rate limited and JSON payloads are capped at 200 KB.
-- Set `NODE_ENV=production` in your production environment.
-
 ## HTTPS + reverse proxy (Caddy/Nginx/Cloudflared)
 
 If you run behind Caddy or Nginx (optionally fronted by Cloudflared), the API and Socket.IO will work over HTTPS/WSS automatically.
 
 Shared requirements:
 - `CLIENT_ORIGIN` must match your frontend URL(s), e.g. `https://chat.example.com`
-- In production, set `JWT_SECRET` explicitly (or allow the Docker entrypoint to persist a generated one).
-- If you terminate TLS at Cloudflare, ensure the proxy forwards `X-Forwarded-Proto` and the app trusts the proxy.
+- In production, set a strong `JWT_SECRET` (or allow the Docker entrypoint to persist a generated one)
+- If you terminate TLS at Cloudflare, ensure the proxy forwards `X-Forwarded-Proto` and the app trusts the proxy
 
-### Caddy guide
-
-1) Point your DNS A/AAAA record for `chat.example.com` to your server.
-2) Install Caddy (it will fetch and renew TLS certs automatically).
-3) Save a Caddyfile like this and reload.
+### Caddy (example)
 
 ```
 chat.example.com {
@@ -315,50 +241,7 @@ chat.example.com {
 }
 ```
 
-Notes:
-- Caddy handles HTTP->HTTPS redirects automatically.
-- If you are behind Cloudflare, use a Caddyfile that trusts Cloudflare and forwards the `X-Forwarded-Proto` header.
-
-### HTTPS without an external proxy/tunnel (use the bundled Caddy)
-
-If you do not want an external reverse proxy or tunnel, you can let the built-in Caddy handle TLS directly:
-
-1) Point DNS A/AAAA for `chat.example.com` to your server (Caddy cannot issue certs for bare IPs).
-2) Update `Caddyfile` to use your domain (replace `:80` with your hostname).
-3) Expose ports 80 and 443 for the `web` service in `docker-compose.yml`.
-4) Set `CLIENT_ORIGIN=https://chat.example.com` and `NODE_ENV=production` in your env.
-
-Example Caddyfile:
-
-```
-chat.example.com {
-  encode gzip
-  reverse_proxy /api/* http://server:3001
-  reverse_proxy /socket.io/* http://server:3001
-  reverse_proxy http://server:80
-}
-```
-
-Example docker-compose ports:
-
-```
-web:
-  ports:
-    - "80:80"
-    - "443:443"
-```
-
-Notes:
-- This still uses the bundled Caddy as your TLS terminator, it just runs inside the container.
-- Make sure ports 80 and 443 are open on the host firewall.
-
-### Nginx guide
-
-1) Point DNS to your server.
-2) Install Nginx.
-3) Obtain TLS certificates (examples use Certbot):
-   - `sudo certbot --nginx -d chat.example.com`
-4) Add a server block like the following.
+### Nginx (example)
 
 ```
 server {
@@ -394,19 +277,7 @@ server {
 }
 ```
 
-Notes:
-- Add a separate `server { listen 80; }` block to redirect HTTP to HTTPS if you are not using Certbot's auto config.
-- If using Cloudflare in front, configure Nginx to trust Cloudflare IP ranges before trusting `X-Forwarded-Proto`.
-
-### Cloudflared guide
-
-Cloudflared lets you expose your origin without opening port 443.
-
-1) Install `cloudflared` and login:
-   - `cloudflared tunnel login`
-2) Create a tunnel and config:
-   - `cloudflared tunnel create strand-chat`
-3) Create a config file at `~/.cloudflared/config.yml`:
+### Cloudflared (example)
 
 ```
 tunnel: <TUNNEL_ID>
@@ -414,25 +285,44 @@ credentials-file: /Users/you/.cloudflared/<TUNNEL_ID>.json
 
 ingress:
   - hostname: chat.example.com
-    service: http://127.0.0.1:443
+    service: http://127.0.0.1:8080
+  - hostname: api.chat.example.com
+    service: http://127.0.0.1:3001
   - service: http_status:404
 ```
 
-4) Point DNS to the tunnel:
-   - `cloudflared tunnel route dns strand-chat chat.example.com`
-5) Run the tunnel:
-   - `cloudflared tunnel run strand-chat`
+## Database migrations (when upgrading)
 
-Notes:
-- Set `NODE_ENV=production`, `TRUST_PROXY=1`, `CLIENT_ORIGIN=https://chat.example.com`, and a strong `JWT_SECRET`.
-- If Cloudflare terminates TLS, keep your origin proxy (Caddy/Nginx) on `http://127.0.0.1:80` instead of `:443`.
-- Ensure your proxy forwards `X-Forwarded-Proto` so secure cookies behave correctly.
+Migrations live in `server/db/migrations`. The server runs them on startup by default.
+To run them manually:
 
-## Troubleshooting checklist
+```
+npm --prefix server run migrate
+```
 
-1) Is Postgres running and reachable from the machine?
-2) Does `DATABASE_URL` point to the correct DB?
-3) Did you run `server/db/init.sql` against the same DB?
-4) Is the API running on `http://localhost:3001`?
-5) Is the frontend running on `http://localhost:8080`?
-6) Does `CLIENT_ORIGIN` match your frontend URL exactly?
+If you want to skip migrations for any reason, set `RUN_MIGRATIONS=false`.
+
+## Database backups
+
+Backup:
+
+```
+docker compose exec db pg_dump -U strand strand_chat > backup.sql
+```
+
+Restore:
+
+```
+docker compose exec -T db psql -U strand strand_chat < backup.sql
+```
+
+## Project structure
+
+- `server/` Express + Socket.IO API server
+- `server/db/init.sql` initial schema
+- `src/` React app
+
+## Docs
+
+- `CONTRIBUTING.md`
+- `API.md`

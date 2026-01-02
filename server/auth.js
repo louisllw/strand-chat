@@ -15,9 +15,21 @@ export const verifyToken = (token) => {
 export const authCookieOptions = () => ({
   httpOnly: true,
   sameSite: 'strict',
-  secure: process.env.NODE_ENV === 'production',
+  secure: getSecureCookieSetting(),
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 });
 
 export const getAuthCookieName = () => COOKIE_NAME;
+
+export const getSecureCookieSetting = () => {
+  const clientOrigin = process.env.CLIENT_ORIGIN || '';
+  const origins = clientOrigin
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (origins.length === 0) {
+    return process.env.NODE_ENV === 'production';
+  }
+  return origins.every((origin) => origin.startsWith('https://'));
+};
