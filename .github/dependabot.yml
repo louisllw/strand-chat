@@ -5,33 +5,57 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      npm-root:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/server"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      npm-server:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      docker-root:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/server"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      docker-server:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/server/db"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      docker-db:
+        patterns:
+          - "*"
