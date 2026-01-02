@@ -3,6 +3,9 @@
 Base URL: `http://localhost:3001/api`
 
 Authentication is cookie-based. The API sets a signed JWT in the auth cookie on login/register.
+For non-GET/HEAD/OPTIONS requests, send the CSRF token in the `x-csrf-token` header.
+
+OpenAPI schema: `openapi.yml`.
 
 ## Auth
 
@@ -44,6 +47,22 @@ Returns the authenticated user.
 Response:
 ```json
 { "user": { "id": "...", "username": "...", "email": "..." } }
+```
+
+### POST `/auth/refresh`
+Re-issues the auth cookie and returns the current user.
+
+Response:
+```json
+{ "user": { "id": "...", "username": "...", "email": "..." } }
+```
+
+### GET `/auth/csrf`
+Fetches a CSRF token for cookie-authenticated requests.
+
+Response:
+```json
+{ "csrfToken": "..." }
 ```
 
 ## Users
@@ -224,6 +243,14 @@ Response:
 { "ok": true }
 ```
 
+### GET `/ready`
+Readiness check (database connectivity).
+
+Response:
+```json
+{ "ok": true }
+```
+
 ## Socket.IO
 
 Socket namespace: default (`/`). Authentication is via the auth cookie.
@@ -245,7 +272,18 @@ Server emits:
 - `presence:update` `{ userId, status, lastSeen }`
 - `conversation:created` `{ conversationId }`
 - `conversation:updated` `{ conversationId }`
+- `error` `{ event, message }`
 
 ## Errors
 
 Errors are returned as JSON with an `error` string and appropriate HTTP status codes.
+
+Example:
+```json
+{
+  "error": "Invalid request",
+  "details": {
+    "fieldErrors": { "email": ["Invalid email"] }
+  }
+}
+```

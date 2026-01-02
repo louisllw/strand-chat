@@ -15,6 +15,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.50'
 
   strand-server:
     image: louisllw/strand-chat-server:latest
@@ -26,6 +31,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3001}
       DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
+      REDIS_URL: ${REDIS_URL:-redis://strand-redis:6379}
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
@@ -33,6 +39,8 @@ services:
     depends_on:
       strand-db:
         condition: service_healthy
+      strand-redis:
+        condition: service_started
     ports:
       - "3001:3001"
     volumes:
@@ -42,6 +50,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.50'
 
   strand-web:
     image: louisllw/strand-chat-web:latest
@@ -59,7 +72,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.50'
+
+  strand-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
 
 volumes:
   db_data:
   server_data:
+  redis_data:
