@@ -134,6 +134,9 @@ Open:
 - Frontend: `http://localhost:8080`
 - API health: `http://localhost:3001/api/health`
 
+Notes:
+- If your machine can't run the default Node 25 images, set `DOCKER_DEFAULT_PLATFORM` to match your CPU (e.g. `linux/arm64` or `linux/amd64`) and uncomment the `platform` lines in `docker-compose.yml`.
+
 ## Local dev (Node + Postgres)
 
 Requirements:

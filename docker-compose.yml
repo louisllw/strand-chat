@@ -19,6 +19,9 @@ services:
   strand-server:
     image: louisllw/strand-chat-server:latest
     restart: unless-stopped
+    # If Node 25 images don't match your CPU, set DOCKER_DEFAULT_PLATFORM
+    # e.g. linux/arm64 or linux/amd64.
+    # platform: ${DOCKER_DEFAULT_PLATFORM}
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3001}
@@ -43,6 +46,9 @@ services:
   strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
+    # If Node 25 images don't match your CPU, set DOCKER_DEFAULT_PLATFORM
+    # e.g. linux/arm64 or linux/amd64.
+    # platform: ${DOCKER_DEFAULT_PLATFORM}
     depends_on:
       strand-server:
         condition: service_started
