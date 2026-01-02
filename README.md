@@ -234,6 +234,8 @@ Optional tuning:
 - `PG_STATEMENT_TIMEOUT_MS`: query timeout in ms (default `5000`)
 - `DB_RETRY_ATTEMPTS`: retry count for transient read errors (default `2`)
 - `DB_RETRY_DELAY_MS`: base retry delay in ms (default `50`)
+- `MESSAGE_READ_RETENTION_DAYS`: days to keep `message_reads` (default `30`, set `0` to disable cleanup)
+- `MESSAGE_READ_CLEANUP_INTERVAL_MS`: cleanup interval in ms (default `21600000`)
 - `MAX_MESSAGE_LENGTH`: max message length in chars (default `4000`)
 - `MAX_ATTACHMENT_URL_LENGTH`: max attachment URL length (default `2048`)
 - `MAX_DATA_URL_BYTES`: max data URL size (default `2097152`)
@@ -263,6 +265,16 @@ Shared requirements:
 - In production, set a strong `JWT_SECRET` (or allow the Docker entrypoint to persist a generated one)
 - If you terminate TLS at Cloudflare, ensure the proxy forwards `X-Forwarded-Proto` and the app trusts the proxy
 - If you are behind a proxy, keep `TRUST_PROXY=1`
+- For multi-instance Socket.IO deployments, see the scaling notes below
+
+## Scaling Socket.IO (multi-instance)
+
+Socket.IO requires either sticky sessions at the load balancer or a shared adapter (e.g., Redis) to deliver events to the right instance.
+
+- **Sticky sessions**: ensure a client always hits the same server instance (recommended if you do not use a shared adapter).
+- **Shared adapter**: use the Socket.IO Redis adapter and point all instances at the same Redis. Without this, events like `message:new` and `typing:indicator` will not reach clients connected to other instances.
+
+If you run multiple instances in production, choose one of the options above and verify your load balancer supports WebSocket sticky sessions.
 
 ### Caddy (example)
 
