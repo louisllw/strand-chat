@@ -25,6 +25,11 @@ Update `server/.env` with your local Postgres connection and a JWT secret.
 psql "postgres://USER:PASSWORD@HOST:5432/DB_NAME" -f server/db/init.sql
 ```
 
+If you are upgrading an existing database, run migrations:
+```
+npm --prefix server run migrate
+```
+
 4) Run the app
 ```
 # API
@@ -64,6 +69,9 @@ npm run dev
 
 - Lint: `npm run lint`
 - Build: `npm run build`
+- Frontend tests: `npm test`
+- Server tests: `npm --prefix server test`
+- Server integration tests: `DATABASE_URL=postgres://... RUN_INTEGRATION_TESTS=true npm --prefix server run test:integration`
 
 If you add new behavior, include a quick validation note in your PR.
 
