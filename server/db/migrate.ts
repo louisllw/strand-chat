@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const migrationsDir = path.join(__dirname, 'migrations');
 const sourceMigrationsDir = path.resolve(__dirname, '../../db/migrations');
+const baseSchemaPath = path.resolve(__dirname, '../../db/init.sql');
 
 const resolveMigrationsDir = async () => {
   try {
@@ -67,6 +68,14 @@ const runMigrations = async () => {
 
   try {
     await client.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
+
+    const { rows: tableRows } = await client.query('select to_regclass($1) as table_name', ['public.users']);
+    if (!tableRows[0]?.table_name) {
+      const schemaSql = await readFile(baseSchemaPath, 'utf8');
+      if (schemaSql.trim()) {
+        await client.query(schemaSql);
+      }
+    }
 
     await client.query(`
       create table if not exists schema_migrations (
