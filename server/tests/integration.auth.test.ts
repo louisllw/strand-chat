@@ -19,6 +19,13 @@ const waitForHealth = async (baseUrl: string, timeoutMs = 20000) => {
   throw new Error('Server did not become healthy in time');
 };
 
+const extractAuthCookie = (setCookieHeader: string | null) => {
+  if (!setCookieHeader) return '';
+  const match = setCookieHeader.match(/(?:^|,\s*)strand_auth=([^;]+)/);
+  if (!match) return '';
+  return `strand_auth=${match[1]}`;
+};
+
 test('auth register/login flow (integration)', { skip: !shouldRun }, async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
@@ -46,7 +53,7 @@ test('auth register/login flow (integration)', { skip: !shouldRun }, async () =>
     const timestamp = Date.now();
     const email = `test${timestamp}@example.com`;
     const username = `test${timestamp}`;
-    const password = 'password123!';
+    const password = 'Password123!';
 
     const registerRes = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
@@ -57,8 +64,7 @@ test('auth register/login flow (integration)', { skip: !shouldRun }, async () =>
     const registerBody = await registerRes.json() as { user?: { id?: string } };
     assert.ok(registerBody.user?.id);
 
-    const setCookie = registerRes.headers.get('set-cookie') || '';
-    const cookie = setCookie.split(';')[0];
+    const cookie = extractAuthCookie(registerRes.headers.get('set-cookie'));
     assert.ok(cookie, 'auth cookie should be set on register');
 
     const meRes = await fetch(`${baseUrl}/api/auth/me`, {

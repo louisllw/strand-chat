@@ -53,8 +53,9 @@ test('socket handlers broadcast messages and reactions', { skip: !shouldRunInteg
   const originalEnv = { ...process.env };
   process.env.JWT_SECRET = 'socket-test-secret';
 
-  const userA = await createUser({ username: 'socketa', email: 'socketa@example.com' });
-  const userB = await createUser({ username: 'socketb', email: 'socketb@example.com' });
+  const suffix = Date.now();
+  const userA = await createUser({ username: `socketa${suffix}`, email: `socketa${suffix}@example.com` });
+  const userB = await createUser({ username: `socketb${suffix}`, email: `socketb${suffix}@example.com` });
   const conversationId = await createDirectConversationFor(userA.id, userB.id);
 
   const httpServer = http.createServer();

@@ -19,6 +19,13 @@ const waitForHealth = async (baseUrl: string, timeoutMs = 20000) => {
   throw new Error('Server did not become healthy in time');
 };
 
+const extractAuthCookie = (setCookieHeader: string | null) => {
+  if (!setCookieHeader) return '';
+  const match = setCookieHeader.match(/(?:^|,\s*)strand_auth=([^;]+)/);
+  if (!match) return '';
+  return `strand_auth=${match[1]}`;
+};
+
 const registerUser = async (
   baseUrl: string,
   { username, email, password }: { username: string; email: string; password: string }
@@ -30,8 +37,7 @@ const registerUser = async (
   });
   assert.equal(res.ok, true);
   const body = await res.json() as { user?: { id?: string } };
-  const setCookie = res.headers.get('set-cookie') || '';
-  const cookie = setCookie.split(';')[0];
+  const cookie = extractAuthCookie(res.headers.get('set-cookie'));
   return { user: body.user, cookie };
 };
 
@@ -63,12 +69,12 @@ test('conversation, message, reaction, and read flows (integration)', { skip: !s
     const userA = {
       username: `usera${stamp}`,
       email: `usera${stamp}@example.com`,
-      password: 'password123!',
+      password: 'Password123!',
     };
     const userB = {
       username: `userb${stamp}`,
       email: `userb${stamp}@example.com`,
-      password: 'password123!',
+      password: 'Password123!',
     };
 
     const { cookie: cookieA } = await registerUser(baseUrl, userA);
@@ -149,12 +155,12 @@ test('direct conversations created via /api/conversations are deduped (integrati
     const userA = {
       username: `directa${stamp}`,
       email: `directa${stamp}@example.com`,
-      password: 'password123!',
+      password: 'Password123!',
     };
     const userB = {
       username: `directb${stamp}`,
       email: `directb${stamp}@example.com`,
-      password: 'password123!',
+      password: 'Password123!',
     };
 
     const { user: userAInfo, cookie: cookieA } = await registerUser(baseUrl, userA);
