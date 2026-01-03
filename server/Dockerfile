@@ -8,6 +8,7 @@ RUN npm run build
 RUN mkdir -p dist/db/migrations && cp -r db/migrations/*.sql dist/db/migrations/
 RUN npm prune --omit=dev
 ENV NODE_ENV=production
+RUN mkdir -p /data && chmod 777 /data
 RUN addgroup -S app && adduser -S app -G app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

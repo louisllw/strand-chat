@@ -437,6 +437,65 @@ paths:
           required: true
           schema:
             type: string
+  /push/vapid-public-key:
+    get:
+      summary: Get VAPID public key
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicKey:
+                    type: string
+  /push/subscribe:
+    post:
+      summary: Register a push subscription
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+                expirationTime:
+                  type: integer
+                  nullable: true
+                keys:
+                  type: object
+                  properties:
+                    p256dh:
+                      type: string
+                    auth:
+                      type: string
+      responses:
+        "200":
+          description: OK
+  /push/unsubscribe:
+    post:
+      summary: Remove a push subscription
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+      responses:
+        "200":
+          description: OK
   /health:
     get:
       summary: Health check

@@ -1,7 +1,16 @@
 export type SocketServer = {
   to: (room: string) => { emit: (event: string, payload: unknown) => void };
   in: (room: string) => {
-    fetchSockets: () => Promise<Array<{ data: { conversationIds?: Set<string> }; join: (id: string) => void; leave: (id: string) => void }>>;
+    fetchSockets: () => Promise<Array<{
+      data: {
+        conversationIds?: Set<string>;
+        activeConversationId?: string | null;
+        activeConversationAt?: number;
+      };
+      join: (id: string) => void;
+      leave: (id: string) => void;
+      user?: { userId: string };
+    }>>;
   };
 };
 

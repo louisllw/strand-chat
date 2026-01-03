@@ -19,6 +19,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   const joinedConversationsRef = useRef<Set<string>>(new Set());
   const persistTimeoutRef = useRef<number | null>(null);
   const didInitialLoadRef = useRef(false);
+  const visibilityRef = useRef(document.visibilityState === 'visible');
   const currentUsername = useMemo(() => (user?.username || '').toLowerCase(), [user?.username]);
 
   const normalizeReactions = useCallback((reactions: MessageReaction[] | undefined) => (
@@ -112,6 +113,34 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
+
+  useEffect(() => {
+    if (!socket || !socket.connected) return;
+    emit('conversation:active', activeConversationRef.current?.id || null);
+  }, [emit, socket, activeConversation]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleVisibility = () => {
+      visibilityRef.current = document.visibilityState === 'visible';
+      if (!visibilityRef.current) {
+        emit('conversation:active', null);
+        return;
+      }
+      emit('conversation:active', activeConversationRef.current?.id || null);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [emit, socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const intervalId = window.setInterval(() => {
+      if (!visibilityRef.current) return;
+      emit('conversation:active', activeConversationRef.current?.id || null);
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [emit, socket]);
 
   const markAsRead = useCallback((conversationId: string) => {
     const active = activeConversationRef.current;

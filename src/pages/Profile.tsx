@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { UserAvatar } from '@/components/chat/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
+import { disablePushNotifications, enablePushNotifications, getPushStatus } from '@/lib/push';
 import { apiFetch } from '@/lib/api';
+import { InstallPwaPrompt } from '@/components/InstallPwaPrompt';
 import Cropper, { type Area } from 'react-easy-crop';
 import {
   ArrowLeft,
@@ -149,6 +151,7 @@ const Profile = () => {
     sounds: true,
     desktop: false,
   });
+  const [pushSupported, setPushSupported] = useState(true);
   const [usernameStatus, setUsernameStatus] = useState({
     state: 'idle' as 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'cooldown',
     message: '',
@@ -179,6 +182,74 @@ const Profile = () => {
       socialGithub: dirty.socialGithub ? prev.socialGithub : user.socialGithub || '',
     }));
   }, [user]);
+
+  useEffect(() => {
+    let active = true;
+    const initPush = async () => {
+      const status = await getPushStatus();
+      if (!active) return;
+      setPushSupported(status.supported);
+      setNotifications(prev => ({ ...prev, desktop: status.supported && status.subscribed }));
+    };
+    void initPush();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleDesktopNotifications = async (checked: boolean) => {
+    if (!checked) {
+      const ok = await disablePushNotifications();
+      if (!ok) {
+        toast({
+          title: 'Push disable failed',
+          description: 'Unable to remove the push subscription.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setNotifications(prev => ({ ...prev, desktop: false }));
+      return;
+    }
+
+    const result = await enablePushNotifications();
+    if (result.status === 'subscribed') {
+      setNotifications(prev => ({ ...prev, desktop: true }));
+      return;
+    }
+
+    setNotifications(prev => ({ ...prev, desktop: false }));
+
+    if (result.status === 'unsupported') {
+      toast({
+        title: 'Push not supported',
+        description: 'Your browser does not support push notifications.',
+      });
+      return;
+    }
+
+    if (result.status === 'requires-install') {
+      toast({
+        title: 'Install required',
+        description: 'Add the app to your Home Screen to enable push on iOS.',
+      });
+      return;
+    }
+
+    if (result.status === 'denied') {
+      toast({
+        title: 'Notifications blocked',
+        description: 'Enable notifications in your browser settings to continue.',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Push setup failed',
+      description: result.message,
+      variant: 'destructive',
+    });
+  };
 
   const markDirty = (field: ProfileFormField) => {
     dirtyRef.current = { ...dirtyRef.current, [field]: true };
@@ -863,9 +934,12 @@ const Profile = () => {
             </div>
             <Switch
               checked={notifications.desktop}
-              onCheckedChange={(checked) => setNotifications({ ...notifications, desktop: checked })}
+              disabled={!pushSupported}
+              onCheckedChange={handleDesktopNotifications}
             />
           </div>
+
+          <InstallPwaPrompt />
         </section>
 
         {/* Appearance */}

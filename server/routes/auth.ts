@@ -31,6 +31,7 @@ router.post('/register', authRateLimiter, validate(registerSchema), asyncHandler
 router.post('/login', authRateLimiter, validate(loginSchema), asyncHandler(login));
 router.get('/csrf', csrfRateLimiter, asyncHandler(csrf));
 router.post('/refresh', requireAuth, asyncHandler(refresh));
+router.get('/refresh', requireAuth, asyncHandler(refresh));
 router.post('/logout', requireAuth, asyncHandler(logout));
 router.post('/logout-all', requireAuth, asyncHandler(logoutAll));
 router.post('/compromised', requireAuth, asyncHandler(compromised));

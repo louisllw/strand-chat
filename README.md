@@ -229,12 +229,29 @@ openssl rand -hex 32
 Set the new value in your stack env (Portainer) or `.env` (Compose) and restart the `server` service.
 If you previously relied on the auto-generated file, delete `/data/jwt_secret` from the `server_data` volume to force a new one on next boot.
 
+## Push notifications (VAPID)
+
+If `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` are missing or left as placeholders, the server auto-generates a VAPID keypair and persists it to `/data/vapid.json` (in the `server_data` volume).
+
+To supply your own keys, set:
+
+```
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:admin@example.com
+```
+
+If you previously relied on the auto-generated file, delete `/data/vapid.json` from the `server_data` volume to force a new one on next boot.
+
 ## Environment variables
 
 Secrets (set in Portainer stack env or `.env`):
 - `POSTGRES_PASSWORD`: database password
 - `DATABASE_URL`: `postgres://USER:PASSWORD@HOST:5432/DB_NAME`
 - `JWT_SECRET`: random string used to sign login tokens
+- `VAPID_PUBLIC_KEY`: public VAPID key for web push
+- `VAPID_PRIVATE_KEY`: private VAPID key for web push
+- `VAPID_SUBJECT`: contact email or URL (default `mailto:admin@example.com`)
 
 For local dev, use `server/.env.example` as a starting point.
 
@@ -263,6 +280,7 @@ Optional tuning:
 - `SOCKET_REACTION_WINDOW_MS`: window for reaction rate limit (default `10000`)
 - `SOCKET_TYPING_LIMIT`: socket typing limit per window (default `40`)
 - `SOCKET_TYPING_WINDOW_MS`: window for typing rate limit (default `10000`)
+- `VAPID_KEYS_PATH`: where generated VAPID keys are stored (default `/data/vapid.json`)
 
 Server JSON payload limit is 10 MB (`server/index.ts`).
 

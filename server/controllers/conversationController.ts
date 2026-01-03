@@ -11,6 +11,8 @@ import {
   addMembersToConversation,
   removeMembersFromConversation,
   markConversationAsRead,
+  getConversationInfoForMember,
+  listConversationMemberIdsForUser,
   listConversationMembersForUser,
   updateConversationMemberRole,
 } from '../services/conversationService.js';
@@ -24,6 +26,9 @@ import {
   isMessageTooLong,
 } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
+import { sendPushToUsers } from '../services/pushService.js';
+
+const ACTIVE_PRESENCE_TTL_MS = 20000;
 
 export const createConversationController = (socketManager: SocketManager) => ({
   listConversations: async (req: Request, res: Response) => {
@@ -152,7 +157,56 @@ export const createConversationController = (socketManager: SocketManager) => ({
       });
     });
 
-    socketManager.emitToConversation(conversationId, 'message:new', result.message);
+    const message = result.message;
+    socketManager.emitToConversation(conversationId, 'message:new', message);
+
+    void (async () => {
+      const sender = message.senderUsername ? `@${message.senderUsername}` : 'Someone';
+      const { type: conversationType, name: conversationName } = await getConversationInfoForMember({
+        conversationId,
+        userId,
+      });
+      const groupPrefix = conversationType === 'group' && conversationName
+        ? `${conversationName}: `
+        : '';
+      const pushBody = `${groupPrefix}${message.type === 'image'
+        ? 'Sent an image'
+        : message.type === 'file'
+          ? 'Sent a file'
+          : message.content}`;
+      const members = await listConversationMemberIdsForUser({ conversationId, userId });
+      const sockets = await socketManager.io.in(conversationId).fetchSockets();
+      const activeUserIds = new Set<string>();
+      const now = Date.now();
+      sockets.forEach((socket) => {
+        const lastActiveAt = socket.data.activeConversationAt;
+        if (
+          socket.user?.userId
+          && socket.data.activeConversationId === conversationId
+          && lastActiveAt
+          && now - lastActiveAt < ACTIVE_PRESENCE_TTL_MS
+        ) {
+          activeUserIds.add(socket.user.userId);
+        }
+      });
+      const recipients = members.filter((memberId) => (
+        memberId !== userId && !activeUserIds.has(memberId)
+      ));
+      if (recipients.length > 0) {
+        await sendPushToUsers(recipients, {
+          title: sender,
+          body: pushBody,
+          url: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
+          icon: '/pwa-icon-v2.svg',
+          badge: '/pwa-icon-v2.svg',
+        });
+      }
+    })().catch((error) => {
+      logger.warn('[push] send failed', {
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     res.json({ message: result.message });
   },

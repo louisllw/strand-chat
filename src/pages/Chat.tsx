@@ -7,8 +7,9 @@ import { EmptyState } from '@/components/chat/EmptyState';
 import { useChatConversations } from '@/contexts/useChatConversations';
 
 const Chat = () => {
-  const { activeConversation } = useChatConversations();
+  const { activeConversation, conversations, setActiveConversation } = useChatConversations();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingConversationId, setPendingConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     // Lock both html and body to prevent any scrolling
@@ -58,6 +59,26 @@ const Chat = () => {
       window.removeEventListener('scroll', preventScroll);
     };
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const conversationId = params.get('conversationId');
+    if (conversationId) {
+      setPendingConversationId(conversationId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingConversationId) return;
+    const match = conversations.find(conversation => (
+      conversation.id === pendingConversationId && !conversation.leftAt
+    ));
+    if (!match) return;
+    if (activeConversation?.id !== match.id) {
+      setActiveConversation(match);
+    }
+    setPendingConversationId(null);
+  }, [pendingConversationId, conversations, activeConversation, setActiveConversation]);
 
   useEffect(() => {
     const visualViewport = window.visualViewport;

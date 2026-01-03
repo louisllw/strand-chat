@@ -81,6 +81,44 @@ Response:
 { "csrfToken": "..." }
 ```
 
+## Push Notifications
+
+Requires PWA install and valid VAPID keys configured on the server.
+
+### GET `/push/vapid-public-key`
+Returns the VAPID public key used for subscriptions.
+
+Response:
+```json
+{ "publicKey": "..." }
+```
+
+### POST `/push/subscribe`
+Register a push subscription for the current user.
+
+Body:
+```json
+{ "endpoint": "...", "expirationTime": null, "keys": { "p256dh": "...", "auth": "..." } }
+```
+
+Response:
+```json
+{ "ok": true }
+```
+
+### POST `/push/unsubscribe`
+Remove a push subscription for the current user.
+
+Body:
+```json
+{ "endpoint": "..." }
+```
+
+Response:
+```json
+{ "ok": true }
+```
+
 ## Users
 
 ### GET `/users/username-availability?username=NAME`

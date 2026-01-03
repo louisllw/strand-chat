@@ -578,6 +578,34 @@ export const listConversationMembersForUser = async ({
   }));
 };
 
+export const getConversationInfoForMember = async ({
+  conversationId,
+  userId,
+}: {
+  conversationId: string;
+  userId: string;
+}) => {
+  const [type, name] = await Promise.all([
+    getConversationTypeForMember({ conversationId, userId }),
+    getConversationName(conversationId),
+  ]);
+  return { type, name };
+};
+
+export const listConversationMemberIdsForUser = async ({
+  conversationId,
+  userId,
+}: {
+  conversationId: string;
+  userId: string;
+}) => {
+  const conversationType = await getConversationTypeForMember({ conversationId, userId });
+  if (!conversationType) {
+    throw new ServiceError(403, 'CONVERSATION_FORBIDDEN', 'Forbidden');
+  }
+  return listConversationMembers(conversationId);
+};
+
 export const updateConversationMemberRole = async ({
   conversationId,
   userId,

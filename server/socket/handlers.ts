@@ -5,6 +5,7 @@ import { isTokenRevoked } from '../services/tokenRevocation.js';
 import { getConversationMembership, listConversationIdsForUser } from '../models/conversationModel.js';
 import { updateUserStatus, updateUserStatusWithProfile } from '../models/userModel.js';
 import { createMessage, toggleReaction } from '../services/messageService.js';
+import { getConversationInfoForMember, listConversationMemberIdsForUser } from '../services/conversationService.js';
 import {
   allowedReactions,
   isAttachmentUrlTooLong,
@@ -18,6 +19,7 @@ import { logger } from '../utils/logger.js';
 import { getMessageDedup, setMessageDedup } from '../services/messageDedup.js';
 import { getRedisClient } from '../services/redis.js';
 import { SOCKET_LIMITS } from '../constants.js';
+import { sendPushToUsers } from '../services/pushService.js';
 
 const cookieMiddleware = cookieParser();
 const connectionCounts = new Map<string, number>();
@@ -34,6 +36,7 @@ const {
   TYPING_INDICATOR_TIMEOUT_MS,
   PRESENCE_DEBOUNCE_MS,
 } = SOCKET_LIMITS;
+const ACTIVE_PRESENCE_TTL_MS = 20000;
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : undefined);
 const createErrorId = () => randomUUID();
@@ -266,6 +269,19 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       }
     });
 
+    socket.on('conversation:active', (conversationId: string | null) => {
+      if (!conversationId) {
+        socket.data.activeConversationId = null;
+        socket.data.activeConversationAt = undefined;
+        return;
+      }
+      if (!socket.data.conversationIds || !socket.data.conversationIds.has(conversationId)) {
+        return;
+      }
+      socket.data.activeConversationId = conversationId;
+      socket.data.activeConversationAt = Date.now();
+    });
+
     socket.on('message:send', async (
       payload: {
         conversationId?: string;
@@ -348,7 +364,55 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           void socketManager.addConversationToUserSockets(memberId, conversationId);
         });
 
-        socketManager.emitToConversation(conversationId, 'message:new', result.message);
+        const message = result.message;
+        socketManager.emitToConversation(conversationId, 'message:new', message);
+        void (async () => {
+          const sender = message.senderUsername ? `@${message.senderUsername}` : 'Someone';
+          const { type: conversationType, name: conversationName } = await getConversationInfoForMember({
+            conversationId,
+            userId,
+          });
+          const groupPrefix = conversationType === 'group' && conversationName
+            ? `${conversationName}: `
+            : '';
+          const pushBody = `${groupPrefix}${message.type === 'image'
+            ? 'Sent an image'
+            : message.type === 'file'
+              ? 'Sent a file'
+              : message.content}`;
+          const members = await listConversationMemberIdsForUser({ conversationId, userId });
+          const sockets = await socketManager.io.in(conversationId).fetchSockets();
+          const activeUserIds = new Set<string>();
+          const now = Date.now();
+          sockets.forEach((socket) => {
+            const lastActiveAt = socket.data.activeConversationAt;
+            if (
+              socket.user?.userId
+              && socket.data.activeConversationId === conversationId
+              && lastActiveAt
+              && now - lastActiveAt < ACTIVE_PRESENCE_TTL_MS
+            ) {
+              activeUserIds.add(socket.user.userId);
+            }
+          });
+          const recipients = members.filter((memberId) => (
+            memberId !== userId && !activeUserIds.has(memberId)
+          ));
+          if (recipients.length > 0) {
+            await sendPushToUsers(recipients, {
+              title: sender,
+              body: pushBody,
+              url: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
+              icon: '/pwa-icon-v2.svg',
+              badge: '/pwa-icon-v2.svg',
+            });
+          }
+        })().catch((error) => {
+          logger.warn('[push] send failed', {
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
         if (callback) callback({ message: result.message });
       } catch (error) {
         const errorId = createErrorId();

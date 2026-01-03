@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import createConversationsRouter from './routes/conversations.js';
 import createMessagesRouter from './routes/messages.js';
+import pushRoutes from './routes/push.js';
 import { getSecureCookieSetting } from './auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { ensureCsrfCookie, requireCsrf } from './middleware/csrf.js';
@@ -103,6 +104,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/conversations', createConversationsRouter(socketManager));
 app.use('/api/messages', createMessagesRouter(socketManager));
+app.use('/api/push', pushRoutes);
 
 app.use(errorHandler);
 
