@@ -79,7 +79,7 @@ const refreshAuth = async () => {
   return authRefreshPromise;
 };
 
-const getCsrfToken = async () => {
+const getCsrfToken = async (): Promise<string> => {
   if (csrfToken) return csrfToken;
   if (!csrfPromise) {
     csrfPromise = fetch(`${API_BASE}/api/auth/csrf`, { credentials: 'include' })
@@ -89,8 +89,9 @@ const getCsrfToken = async () => {
         }
         const data = await parseJson(response);
         if (data && typeof data === 'object' && 'csrfToken' in data && typeof data.csrfToken === 'string') {
-          csrfToken = data.csrfToken;
-          return csrfToken;
+          const token = data.csrfToken;
+          csrfToken = token;
+          return token;
         }
         throw new Error('Invalid CSRF token response');
       })
@@ -98,7 +99,7 @@ const getCsrfToken = async () => {
         csrfPromise = null;
       });
   }
-  return csrfPromise;
+  return csrfPromise!;
 };
 
 type ApiFetchOptions = RequestInit & {

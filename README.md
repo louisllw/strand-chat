@@ -18,7 +18,7 @@ Self-hosted, real-time chat with Postgres + Socket.IO.
 
 ## Quick start (Portainer)
 
-1) Create a new Stack and paste this compose:
+1) Create a new Stack and paste this compose (matches `docker-compose.yml`):
 
 ```yaml
 services:
@@ -31,14 +31,16 @@ services:
       - POSTGRES_PASSWORD
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U strand -d strand_chat"]
       interval: 10s
       timeout: 5s
       retries: 10
-    # Remove the port mapping if you do not need direct DB access.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.50'
 
   strand-redis:
     image: redis:7-alpine
@@ -46,6 +48,11 @@ services:
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
 
   strand-server:
     image: louisllw/strand-chat-server:latest
@@ -73,10 +80,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.50'
 
   strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
+    user: "0:0"
     depends_on:
       strand-server:
         condition: service_started
@@ -87,6 +100,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.50'
 
 volumes:
   db_data:
@@ -94,7 +112,7 @@ volumes:
   redis_data:
 ```
 
-2) Add this secrets block in the Stack environment variables section:
+2) Add this secrets block in the Stack environment variables section (or `.env` if you're using Docker Compose):
 
 ```
 POSTGRES_PASSWORD=strand_password
@@ -128,7 +146,7 @@ Notes:
 ## Quick start (Docker Compose)
 
 1) Copy `docker-compose.yml` from the repo.
-2) Create a `.env` file next to it with your secrets:
+2) Create a `.env` file next to it with your secrets (required):
 
 ```
 POSTGRES_PASSWORD=strand_password
@@ -246,7 +264,7 @@ Optional tuning:
 - `SOCKET_TYPING_LIMIT`: socket typing limit per window (default `40`)
 - `SOCKET_TYPING_WINDOW_MS`: window for typing rate limit (default `10000`)
 
-Server JSON payload limit is 30 MB (`server/index.ts`).
+Server JSON payload limit is 10 MB (`server/index.ts`).
 
 ## Common setup issues
 
