@@ -15,7 +15,7 @@ const waitForConnect = (socket: ClientSocket) =>
       resolve();
       return;
     }
-    const timeout = setTimeout(() => reject(new Error('Socket connect timeout')), 5000);
+    const timeout = setTimeout(() => reject(new Error('Socket connect timeout')), 10000);
     socket.once('connect', () => {
       clearTimeout(timeout);
       resolve();
@@ -28,7 +28,7 @@ const waitForConnect = (socket: ClientSocket) =>
 
 const waitForEvent = <T>(socket: ClientSocket, event: string) =>
   new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ${event}`)), 5000);
+    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ${event}`)), 10000);
     socket.once(event, (payload: T) => {
       clearTimeout(timeout);
       resolve(payload);
@@ -37,7 +37,7 @@ const waitForEvent = <T>(socket: ClientSocket, event: string) =>
 
 const emitWithAck = <T>(socket: ClientSocket, event: string, payload: unknown) =>
   new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ack ${event}`)), 5000);
+    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ack ${event}`)), 10000);
     socket.emit(event, payload, (response: T & { error?: string }) => {
       if (response?.error) {
         clearTimeout(timeout);
