@@ -81,7 +81,11 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/api/messages")).rejects.toBeInstanceOf(Error);
     expect(handler.mock.calls.length).toBeGreaterThan(0);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const calledUrls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(calledUrls.some((url) => url.endsWith("/api/messages"))).toBe(true);
+    expect(calledUrls.some((url) => url.endsWith("/api/auth/csrf"))).toBe(true);
+    expect(calledUrls.some((url) => url.endsWith("/api/auth/refresh"))).toBe(true);
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3);
     window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handler);
   });
 

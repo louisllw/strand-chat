@@ -208,7 +208,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       return created;
     }
     return null;
-  }, [refreshConversations, schedulePersistConversations]);
+  }, [refreshConversations]);
 
   const createGroupConversation = useCallback(async (name: string, usernames: string[]) => {
     const data = await apiFetch<{ conversationId: string }>('/api/conversations/group', {
@@ -254,7 +254,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
         : prev
     ));
     await refreshConversations();
-  }, [refreshConversations]);
+  }, [refreshConversations, schedulePersistConversations]);
 
   const deleteConversation = useCallback(async (conversationId: string) => {
     await apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' });

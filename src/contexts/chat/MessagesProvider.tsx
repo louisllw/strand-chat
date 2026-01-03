@@ -149,7 +149,17 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (socket?.connected && !activeConversation.leftAt) {
       emit('conversation:join', activeConversation.id);
     }
-  }, [activeConversation, normalizeMessage, emit, markAsRead, persistMessages, reportError, socket]);
+  }, [
+    activeConversation,
+    normalizeMessage,
+    emit,
+    markAsRead,
+    persistMessages,
+    reportError,
+    scheduleMarkAsRead,
+    shouldMarkRead,
+    socket,
+  ]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!activeConversation || isLoadingOlder || !hasMoreMessages) return 0;

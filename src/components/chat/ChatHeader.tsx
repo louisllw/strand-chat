@@ -25,7 +25,7 @@ import {
   UserPlus,
   LogOut,
 } from 'lucide-react';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,27 +54,27 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
   const [delegateUserId, setDelegateUserId] = useState('');
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
 
-  if (!activeConversation) return null;
+  const conversation = activeConversation;
 
-  const displayName = activeConversation.type === 'group'
-    ? activeConversation.name
-    : activeConversation.participants[0]?.username
-    ? `@${activeConversation.participants[0].username}`
+  const displayName = conversation?.type === 'group'
+    ? conversation.name
+    : conversation?.participants[0]?.username
+    ? `@${conversation.participants[0].username}`
     : undefined;
 
-  const displayStatus = activeConversation.type === 'direct'
-    ? activeConversation.participants[0]?.status
+  const displayStatus = conversation?.type === 'direct'
+    ? conversation.participants[0]?.status
     : undefined;
 
-  const isTyping = activeConversation.type === 'direct'
+  const isTyping = conversation?.type === 'direct'
     ? typingIndicators.some(
-        indicator => indicator.conversationId === activeConversation.id
-          && indicator.userId === activeConversation.participants[0]?.id
+        indicator => indicator.conversationId === conversation.id
+          && indicator.userId === conversation.participants[0]?.id
       )
     : false;
 
-  const lastSeen = activeConversation.participants[0]?.lastSeen
-    || activeConversation.updatedAt;
+  const lastSeen = conversation?.participants[0]?.lastSeen
+    || conversation?.updatedAt;
   const statusText = isTyping
     ? 'Typing...'
     : lastSeen
@@ -85,10 +85,12 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
     ? 'Away'
     : 'Offline';
 
-  const participantCount = activeConversation.participantCount ?? activeConversation.participants.length;
-  const isGroup = activeConversation.type === 'group';
-  const profileUser = !isGroup ? activeConversation.participants[0] : null;
-  const isLeftConversation = Boolean(activeConversation.leftAt);
+  const participantCount = conversation
+    ? (conversation.participantCount ?? conversation.participants.length)
+    : 0;
+  const isGroup = conversation?.type === 'group';
+  const profileUser = !isGroup ? conversation?.participants[0] ?? null : null;
+  const isLeftConversation = Boolean(conversation?.leftAt);
   const adminCount = members.filter(member => member.role === 'admin').length;
   const currentMember = members.find(member => member.id === user?.id);
   const isCurrentUserAdmin = currentMember?.role === 'admin';
@@ -188,6 +190,8 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
       setMemberActionId(null);
     }
   };
+
+  if (!conversation) return null;
 
   return (
     <header className={cn('sticky top-0 z-20 bg-card border-b border-border px-3 py-2 sm:px-4 sm:py-3', className)}>

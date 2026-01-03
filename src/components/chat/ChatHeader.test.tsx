@@ -39,12 +39,28 @@ vi.mock('@/contexts/useChatConversations', () => ({
     deleteConversation,
     addGroupMembers,
     leaveGroup,
+    refreshConversations: vi.fn(),
   }),
 }));
 
 vi.mock('@/contexts/useChatTyping', () => ({
   useChatTyping: () => ({
     typingIndicators,
+  }),
+}));
+
+vi.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      id: 'user-1',
+      username: 'bob',
+    },
+  }),
+}));
+
+vi.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({
+    toast: vi.fn(),
   }),
 }));
 
