@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,5 +31,5 @@ if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET === defaultE
 }
 
 if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL === defaultEnv.DATABASE_URL) {
-  console.warn('Warning: DATABASE_URL is using the default credentials in production.');
+  logger.warn('Warning: DATABASE_URL is using the default credentials in production.');
 }

@@ -120,6 +120,10 @@ export const updateUserStatus = async (id: string, status: string) => {
   );
 };
 
+export const markUserCompromised = async (userId: string) => {
+  await query('update users set compromised_at = now(), updated_at = now() where id = $1', [userId]);
+};
+
 export const updateUserStatusWithProfile = async (id: string, status: string) => {
   const result = await query(
     `update users

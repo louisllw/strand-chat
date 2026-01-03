@@ -22,7 +22,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     apiFetch('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify({ theme }),
-    }).catch(() => {});
+    }).catch((error) => {
+      void error;
+    });
   }, [theme]);
 
   const toggleTheme = () => {

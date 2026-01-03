@@ -57,9 +57,22 @@ describe("apiFetch", () => {
   });
 
   it("dispatches unauthorized event for non-auth endpoints", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
-    );
+    const fetchMock = vi.fn((url: RequestInfo) => {
+      const requestUrl = String(url);
+      if (requestUrl.endsWith("/api/auth/csrf")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ csrfToken: "token-1" }), { status: 200 })
+        );
+      }
+      if (requestUrl.endsWith("/api/auth/refresh")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+      );
+    });
     vi.stubGlobal("fetch", fetchMock);
     const { apiFetch, AUTH_UNAUTHORIZED_EVENT } = await setupApi();
 
@@ -68,13 +81,26 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/api/messages")).rejects.toBeInstanceOf(Error);
     expect(handler.mock.calls.length).toBeGreaterThan(0);
+    const calledUrls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(calledUrls.some((url) => url.endsWith("/api/messages"))).toBe(true);
+    expect(calledUrls.some((url) => url.endsWith("/api/auth/csrf"))).toBe(true);
+    expect(calledUrls.some((url) => url.endsWith("/api/auth/refresh"))).toBe(true);
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3);
     window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handler);
   });
 
   it("does not dispatch unauthorized event for auth endpoints", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
-    );
+    const fetchMock = vi.fn((url: RequestInfo) => {
+      const requestUrl = String(url);
+      if (requestUrl.endsWith("/api/auth/csrf")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ csrfToken: "token-1" }), { status: 200 })
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+      );
+    });
     vi.stubGlobal("fetch", fetchMock);
     const { apiFetch, AUTH_UNAUTHORIZED_EVENT } = await setupApi();
 
@@ -83,6 +109,7 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/api/auth/login", { method: "POST" })).rejects.toBeInstanceOf(Error);
     expect(handler).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handler);
   });
 

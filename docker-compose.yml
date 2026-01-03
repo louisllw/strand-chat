@@ -8,8 +8,6 @@ services:
       - POSTGRES_PASSWORD
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U strand -d strand_chat"]
       interval: 10s
@@ -28,14 +26,15 @@ services:
     # e.g. linux/arm64 or linux/amd64.
     # platform: linux/arm64
     environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - DATABASE_URL
-      - REDIS_URL=redis://strand-redis:6379
-      - JWT_SECRET
-      - TRUST_PROXY=1
-      - COOKIE_NAME=strand_auth
-      - CLIENT_ORIGIN=http://localhost:8080
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:-postgres://strand:strand_password@strand-db:5432/strand_chat}
+      REDIS_URL: ${REDIS_URL:-redis://strand-redis:6379}
+      # If unset, the server entrypoint auto-generates and persists a secret at /data/jwt_secret.
+      JWT_SECRET: ${JWT_SECRET}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      COOKIE_NAME: ${COOKIE_NAME:-strand_auth}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
     depends_on:
       strand-db:
         condition: service_healthy
@@ -59,6 +58,7 @@ services:
   strand-web:
     image: louisllw/strand-chat-web:latest
     restart: unless-stopped
+    user: "0:0"
     user: "0:0"
     # If Node 25 images don't match your CPU, set platform explicitly
     # e.g. linux/arm64 or linux/amd64.

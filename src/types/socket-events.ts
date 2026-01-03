@@ -39,6 +39,11 @@ export type ConversationCreatedPayload = {
   conversationId?: string;
 };
 
+export type ConversationRemovedPayload = {
+  conversationId: string;
+  name?: string | null;
+};
+
 export type SocketErrorPayload = {
   event?: string;
   message?: string;
@@ -52,6 +57,7 @@ export type ServerToClientEvents = {
   'presence:update': (payload: PresenceUpdatePayload) => void;
   'conversation:created': (payload: ConversationCreatedPayload) => void;
   'conversation:updated': (payload: ConversationCreatedPayload) => void;
+  'conversation:removed': (payload: ConversationRemovedPayload) => void;
   'error': (payload: SocketErrorPayload) => void;
 };
 
@@ -64,4 +70,3 @@ export type ClientToServerEvents = {
   'presence:active': () => void;
   'presence:away': () => void;
 };
-

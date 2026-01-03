@@ -9,7 +9,17 @@ export const getRedisClient = async (): Promise<RedisClientType | null> => {
   if (!url) return null;
   if (redisClient) return redisClient;
   if (!redisPromise) {
-    redisClient = createClient({ url });
+    redisClient = createClient({
+      url,
+      socket: {
+        reconnectStrategy: (retries) => {
+          const baseDelay = Number(process.env.REDIS_RETRY_DELAY_MS || 250);
+          const maxDelay = Number(process.env.REDIS_RETRY_MAX_DELAY_MS || 5000);
+          const delay = Math.min(baseDelay * 2 ** retries, maxDelay);
+          return delay;
+        },
+      },
+    });
     redisClient.on('error', (error) => {
       logger.warn('[redis] client error', { error: error?.message });
     });

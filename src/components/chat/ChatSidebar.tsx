@@ -56,7 +56,9 @@ export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) =
 
   const handleConversationClick = (conversation: typeof conversations[0]) => {
     setActiveConversation(conversation);
-    markAsRead(conversation.id);
+    if (conversation.unreadCount > 0) {
+      markAsRead(conversation.id);
+    }
     onMobileClose();
   };
 

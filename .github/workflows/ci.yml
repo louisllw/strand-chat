@@ -5,6 +5,8 @@ on:
   push:
     branches: ["main"]
     tags: ["v*.*.*"]
+  schedule:
+    - cron: "0 2 * * *"
 
 jobs:
   test:
@@ -16,7 +18,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v4
         with:
-          node-version: "22"
+          node-version: "25"
           cache: npm
 
       - name: Install dependencies
@@ -41,5 +43,49 @@ jobs:
       - name: Server tests
         run: npm --prefix server test
 
+      - name: Server coverage
+        run: npm --prefix server run test:coverage
+
       - name: Security scan
         run: npm audit --audit-level=high
+
+  integration-tests:
+    if: github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: strand_chat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/strand_chat
+    steps:
+      - name: Check out code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v4
+        with:
+          node-version: "25"
+          cache: npm
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Migrate database
+        run: npm run migrate
+        working-directory: server
+
+      - name: Server integration tests
+        run: npm run test:integration
+        working-directory: server

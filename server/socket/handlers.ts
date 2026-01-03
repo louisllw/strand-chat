@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 import type { SocketManager } from './manager.js';
 import { verifyToken, getAuthCookieName } from '../auth.js';
+import { isTokenRevoked } from '../services/tokenRevocation.js';
 import { getConversationMembership, listConversationIdsForUser } from '../models/conversationModel.js';
 import { updateUserStatus, updateUserStatusWithProfile } from '../models/userModel.js';
 import { createMessage, toggleReaction } from '../services/messageService.js';
@@ -11,6 +12,7 @@ import {
   isMessageTooLong,
 } from '../utils/validation.js';
 import { sanitizeText } from '../utils/sanitize.js';
+import { randomUUID } from 'crypto';
 import cookieParser from 'cookie-parser';
 import { logger } from '../utils/logger.js';
 import { getMessageDedup, setMessageDedup } from '../services/messageDedup.js';
@@ -34,6 +36,7 @@ const {
 } = SOCKET_LIMITS;
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : undefined);
+const createErrorId = () => randomUUID();
 
 export const registerSocketHandlers = (io: Server, socketManager: SocketManager) => {
   const COOKIE_NAME = getAuthCookieName();
@@ -61,49 +64,61 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     const request = socket.request as Parameters<typeof cookieMiddleware>[0] & { cookies?: Record<string, string> };
     cookieMiddleware(request, res, (error) => {
       if (error) return next(error);
-      const token = request.cookies?.[COOKIE_NAME];
-      if (!token) {
-        const logPayload: { hasCookieHeader: boolean; origin?: string | string[] } = {
-          hasCookieHeader: Boolean(request.headers.cookie),
-        };
-        if (process.env.NODE_ENV !== 'production') {
-          logPayload.origin = request.headers.origin;
+      void (async () => {
+        const token = request.cookies?.[COOKIE_NAME];
+        if (!token) {
+          const logPayload: { hasCookieHeader: boolean; origin?: string | string[] } = {
+            hasCookieHeader: Boolean(request.headers.cookie),
+          };
+          if (process.env.NODE_ENV !== 'production') {
+            logPayload.origin = request.headers.origin;
+          }
+        const errorId = createErrorId();
+        logger.warn('[socket] Unauthorized: missing auth cookie', { errorId, ...logPayload });
+        return next(new Error(`Unauthorized (${errorId})`));
         }
-        logger.warn('[socket] Unauthorized: missing auth cookie', logPayload);
-        return next(new Error('Unauthorized'));
-      }
-      try {
-        const decoded = verifyToken(token);
-        socket.user = { userId: decoded.userId };
-      } catch {
-        const logPayload: { origin?: string | string[] } = {};
-        if (process.env.NODE_ENV !== 'production') {
-          logPayload.origin = request.headers.origin;
+        try {
+          const decoded = verifyToken(token);
+          const revoked = await isTokenRevoked(token, decoded);
+          if (revoked) {
+            const errorId = createErrorId();
+            logger.warn('[socket] Unauthorized: revoked auth token', { errorId });
+            return next(new Error(`Unauthorized (${errorId})`));
+          }
+          socket.user = { userId: decoded.userId };
+        } catch {
+          const errorId = createErrorId();
+          const logPayload: { origin?: string | string[] } = {};
+          if (process.env.NODE_ENV !== 'production') {
+            logPayload.origin = request.headers.origin;
+          }
+          logger.warn('[socket] Unauthorized: invalid auth token', { errorId, ...logPayload });
+          return next(new Error(`Unauthorized (${errorId})`));
         }
-        logger.warn('[socket] Unauthorized: invalid auth token', logPayload);
-        return next(new Error('Unauthorized'));
-      }
 
-      const current = connectionCounts.get(socket.user!.userId) || 0;
-      if (current >= MAX_SOCKETS_PER_USER) {
-        logger.warn('[socket] Connection limit exceeded', {
-          userId: socket.user!.userId,
-          current,
-        });
-        return next(new Error('Too many connections'));
-      }
-      connectionCounts.set(socket.user!.userId, current + 1);
-      socket.data.connectionCounted = true;
-      socket.once('disconnect', () => {
-        if (!socket.data.connectionCounted) return;
-        const remaining = (connectionCounts.get(socket.user!.userId) || 1) - 1;
-        if (remaining <= 0) {
-          connectionCounts.delete(socket.user!.userId);
-        } else {
-          connectionCounts.set(socket.user!.userId, remaining);
+        const current = connectionCounts.get(socket.user!.userId) || 0;
+        if (current >= MAX_SOCKETS_PER_USER) {
+          const errorId = createErrorId();
+          logger.warn('[socket] Connection limit exceeded', {
+            errorId,
+            userId: socket.user!.userId,
+            current,
+          });
+          return next(new Error(`Too many connections (${errorId})`));
         }
-      });
-      return next();
+        connectionCounts.set(socket.user!.userId, current + 1);
+        socket.data.connectionCounted = true;
+        socket.once('disconnect', () => {
+          if (!socket.data.connectionCounted) return;
+          const remaining = (connectionCounts.get(socket.user!.userId) || 1) - 1;
+          if (remaining <= 0) {
+            connectionCounts.delete(socket.user!.userId);
+          } else {
+            connectionCounts.set(socket.user!.userId, remaining);
+          }
+        });
+        return next();
+      })().catch(next);
     });
   });
 
@@ -143,8 +158,18 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       });
     };
 
-    const emitSocketError = (event: string, message: string) => {
-      socket.emit('error', { event, message });
+    const emitSocketError = (event: string, message: string, error?: unknown) => {
+      const errorId = createErrorId();
+      if (error) {
+        logger.warn('[socket] emit error', {
+          errorId,
+          event,
+          message,
+          error: getErrorMessage(error),
+          userId,
+        });
+      }
+      socket.emit('error', { event, message, errorId });
     };
 
     const schedulePresenceUpdate = (
@@ -230,12 +255,14 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           emitSocketError('conversation:join', 'Unable to join conversation');
         }
       } catch (error) {
+        const errorId = createErrorId();
         logger.error('[socket] Failed to join conversation', {
+          errorId,
           conversationId,
           userId,
           error,
         });
-        emitSocketError('conversation:join', 'Failed to join conversation');
+        emitSocketError('conversation:join', 'Failed to join conversation', error);
       }
     });
 
@@ -324,11 +351,13 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         socketManager.emitToConversation(conversationId, 'message:new', result.message);
         if (callback) callback({ message: result.message });
       } catch (error) {
+        const errorId = createErrorId();
         logger.error('[socket] Failed to send message', {
+          errorId,
           userId,
           error,
         });
-        emitSocketError('message:send', 'Failed to send message');
+        emitSocketError('message:send', 'Failed to send message', error);
         if (callback) callback({ error: 'Failed to send message' });
       }
     });
@@ -404,11 +433,13 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         });
         if (callback) callback({ messageId, reactions: result.reactions });
       } catch (error) {
+        const errorId = createErrorId();
         logger.error('[socket] Failed to toggle reaction', {
+          errorId,
           userId,
           error,
         });
-        emitSocketError('reaction:toggle', 'Failed to toggle reaction');
+        emitSocketError('reaction:toggle', 'Failed to toggle reaction', error);
         if (callback) callback({ error: 'Failed to toggle reaction' });
       }
     });
@@ -419,12 +450,14 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         await updateUserStatus(userId, 'online');
         schedulePresenceUpdate('online', lastSeen);
       } catch (error) {
+        const errorId = createErrorId();
         logger.warn('[socket] Failed to update presence', {
+          errorId,
           userId,
           status: 'online',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:active', 'Failed to update presence');
+        emitSocketError('presence:active', 'Failed to update presence', error);
       }
     });
 
@@ -434,12 +467,14 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         await updateUserStatus(userId, 'away');
         schedulePresenceUpdate('away', lastSeen);
       } catch (error) {
+        const errorId = createErrorId();
         logger.warn('[socket] Failed to update presence', {
+          errorId,
           userId,
           status: 'away',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:away', 'Failed to update presence');
+        emitSocketError('presence:away', 'Failed to update presence', error);
       }
     });
 
@@ -460,12 +495,14 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         const lastSeen = new Date().toISOString();
         emitPresenceUpdate('offline', lastSeen);
       } catch (error) {
+        const errorId = createErrorId();
         logger.warn('[socket] Failed to update presence', {
+          errorId,
           userId,
           status: 'offline',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:offline', 'Failed to update presence');
+        emitSocketError('presence:offline', 'Failed to update presence', error);
       }
     });
   });

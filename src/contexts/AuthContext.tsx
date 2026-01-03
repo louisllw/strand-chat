@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { User, AuthState } from '@/types';
-import { apiFetch, AUTH_UNAUTHORIZED_EVENT } from '@/lib/api';
+import { apiFetch, AUTH_UNAUTHORIZED_EVENT, ApiError } from '@/lib/api';
 import { useTheme } from '@/contexts/useTheme';
 import { useSocket } from '@/contexts/useSocket';
 import { AuthContext } from '@/contexts/auth-context';
@@ -67,8 +67,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTheme(data.user.theme);
         }
       } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          setState(prev => ({ ...prev, isLoading: false }));
+          return;
+        }
         if (shouldNotifyAuthError(error)) {
-          console.error('[auth] Failed to load session', error);
           toast({
             title: 'Unable to load session',
             description: 'Please sign in again.',
@@ -111,14 +114,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         if (shouldNotifyAuthError(error)) {
-          console.warn('[auth] Failed to refresh session', error);
+          void error;
         }
       } finally {
         isRefreshingRef.current = false;
       }
     };
 
-    refreshSession();
     window.addEventListener('focus', refreshSession);
     document.addEventListener('visibilitychange', refreshSession);
     return () => {
@@ -185,12 +187,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await apiFetch('/api/auth/logout', { method: 'POST' });
     } catch (error) {
-      console.warn('[auth] Logout request failed', error);
+      void error;
     }
     setState({
       user: null,
       isAuthenticated: false,
       isLoading: false,
+    });
+  }, []);
+
+  const reportCompromised = useCallback(async () => {
+    const data = await apiFetch<{ user: User }>('/api/auth/compromised', { method: 'POST' });
+    setState(prev => ({
+      ...prev,
+      user: data.user,
+      isAuthenticated: true,
+      isLoading: false,
+    }));
+    toast({
+      title: 'Account secured',
+      description: 'Signed out of other sessions.',
     });
   }, []);
 
@@ -207,7 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.user, setTheme]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, reportCompromised, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

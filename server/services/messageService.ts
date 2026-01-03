@@ -149,6 +149,8 @@ export const listMessages = async ({
   userId,
   limit,
   clearedAt,
+  joinedAt,
+  leftAt,
   beforeCreatedAt,
   beforeId,
 }: {
@@ -156,6 +158,8 @@ export const listMessages = async ({
   userId: string;
   limit: number;
   clearedAt?: string | null;
+  joinedAt?: string | null;
+  leftAt?: string | null;
   beforeCreatedAt?: string | null;
   beforeId?: string | null;
 }) => {
@@ -164,6 +168,8 @@ export const listMessages = async ({
     userId,
     limit,
     clearedAt,
+    joinedAt,
+    leftAt,
     beforeCreatedAt,
     beforeId,
   });

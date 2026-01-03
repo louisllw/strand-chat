@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.7
+
+- Added group admin management UI (manage/view members, promote/demote, system events, and removal notices).
+- Changed group leave flow to keep the thread, disable input, and allow delete after leaving.
+- Scoped message history to join/leave windows so new or re-added members start fresh.
+- Combined chat header controls into a single panel and made toasts click-to-close with auto-dismiss.
+- Hardened security defaults (explicit JWT algorithm, HSTS, CSP reporting, CSRF rate limits, IPv6-safe rate limit keys).
+- Separated the landing page from the main app for strand.chat-only hosting.
+- Aligned CI/runtime Node version to 25 and expanded tests/coverage scaffolding.
+
 ## v0.0.6
 
 - Migrated server to TypeScript with strict config and updated build/test pipeline.

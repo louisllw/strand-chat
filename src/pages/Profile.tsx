@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -109,7 +109,7 @@ const getCroppedDataUrl = async (
 };
 
 const Profile = () => {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser, logout, reportCompromised } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -140,6 +140,8 @@ const Profile = () => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isCropping, setIsCropping] = useState(false);
+  const [isCompromisedOpen, setIsCompromisedOpen] = useState(false);
+  const [isCompromisedLoading, setIsCompromisedLoading] = useState(false);
   const dirtyRef = useRef<Partial<Record<ProfileFormField, boolean>>>({});
 
   const [notifications, setNotifications] = useState({
@@ -476,6 +478,23 @@ const Profile = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleCompromised = async () => {
+    setIsCompromisedLoading(true);
+    try {
+      await reportCompromised();
+      setIsCompromisedOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      toast({
+        title: 'Security update failed',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCompromisedLoading(false);
+    }
   };
 
   return (
@@ -885,6 +904,13 @@ const Profile = () => {
               <p className="font-medium text-foreground">Active Sessions</p>
               <p className="text-sm text-muted-foreground">Manage your logged in devices</p>
             </button>
+            <button
+              className="w-full text-left p-3 rounded-lg border border-destructive/30 hover:bg-destructive/10 transition-colors"
+              onClick={() => setIsCompromisedOpen(true)}
+            >
+              <p className="font-medium text-destructive">Account Compromised</p>
+              <p className="text-sm text-muted-foreground">Sign out of other sessions and secure your account</p>
+            </button>
           </div>
         </section>
 
@@ -903,6 +929,28 @@ const Profile = () => {
           <p className="mt-1">Built with React + TypeScript</p>
         </footer>
       </main>
+      <Dialog open={isCompromisedOpen} onOpenChange={setIsCompromisedOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Secure your account</DialogTitle>
+            <DialogDescription>
+              This will sign you out of other sessions and keep you signed in here.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCompromisedOpen(false)} disabled={isCompromisedLoading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleCompromised} disabled={isCompromisedLoading}>
+              {isCompromisedLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Secure account'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(cropImage)} onOpenChange={(open) => { if (!open) closeCropper(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

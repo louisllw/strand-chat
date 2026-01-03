@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const shouldRun = process.env.RUN_INTEGRATION_TESTS === 'true';
 
-const waitForHealth = async (baseUrl: string, timeoutMs = 10000) => {
+const waitForHealth = async (baseUrl: string, timeoutMs = 20000) => {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -34,6 +34,7 @@ test('auth register/login flow (integration)', { skip: !shouldRun }, async () =>
       JWT_SECRET: 'integration-test-secret',
       CLIENT_ORIGIN: 'http://localhost:8080',
       NODE_ENV: 'development',
+      PG_STATEMENT_TIMEOUT_MS: '30000',
     },
     stdio: 'ignore',
   });

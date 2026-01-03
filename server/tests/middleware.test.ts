@@ -2,18 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
-import { signToken } from '../auth.js';
+import { signToken, verifyToken } from '../auth.js';
 import { getUserFromRequest, requireAuth } from '../middleware/auth.js';
 import { ensureCsrfCookie, requireCsrf } from '../middleware/csrf.js';
 import { validate } from '../middleware/validate.js';
 import { errorHandler } from '../middleware/errorHandler.js';
 import { ServiceError } from '../utils/errors.js';
+import { revokeToken } from '../services/tokenRevocation.js';
 
-const withEnv = (env: Record<string, string>, fn: () => void) => {
+const withEnv = async (env: Record<string, string>, fn: () => Promise<void> | void) => {
   const original = { ...process.env };
   Object.assign(process.env, env);
   try {
-    return fn();
+    await fn();
   } finally {
     process.env = original;
   }
@@ -42,18 +43,18 @@ const createRes = (): TestResponse => {
   return res;
 };
 
-test('getUserFromRequest returns null without auth cookie', () => {
+test('getUserFromRequest returns null without auth cookie', async () => {
   const req = { cookies: {} } as unknown as Request;
-  assert.equal(getUserFromRequest(req), null);
+  assert.equal(await getUserFromRequest(req), null);
 });
 
-test('requireAuth sets req.user for valid token', () => {
-  withEnv({ JWT_SECRET: 'test-secret' }, () => {
+test('requireAuth sets req.user for valid token', async () => {
+  await withEnv({ JWT_SECRET: 'test-secret' }, async () => {
     const token = signToken({ userId: 'user-1' });
     const req = { cookies: { strand_auth: token } } as unknown as Request;
     const res = createRes();
     let called = false;
-    requireAuth(req, res as unknown as Response, () => {
+    await requireAuth(req, res as unknown as Response, () => {
       called = true;
     });
     assert.equal(called, true);
@@ -61,16 +62,33 @@ test('requireAuth sets req.user for valid token', () => {
   });
 });
 
-test('requireAuth responds 401 when missing token', () => {
+test('requireAuth responds 401 when missing token', async () => {
   const req = { cookies: {} } as unknown as Request;
   const res = createRes();
   let called = false;
-  requireAuth(req, res as unknown as Response, () => {
+  await requireAuth(req, res as unknown as Response, () => {
     called = true;
   });
   assert.equal(called, false);
   assert.equal(res.statusCode, 401);
   assert.deepEqual(res.body, { error: 'Unauthorized' });
+});
+
+test('requireAuth rejects revoked token', async () => {
+  await withEnv({ JWT_SECRET: 'test-secret' }, async () => {
+    const token = signToken({ userId: 'user-1' });
+    const decoded = verifyToken(token);
+    await revokeToken(token, decoded);
+    const req = { cookies: { strand_auth: token } } as unknown as Request;
+    const res = createRes();
+    let called = false;
+    await requireAuth(req, res as unknown as Response, () => {
+      called = true;
+    });
+    assert.equal(called, false);
+    assert.equal(res.statusCode, 401);
+    assert.deepEqual(res.body, { error: 'Unauthorized' });
+  });
 });
 
 test('ensureCsrfCookie sets cookie when missing', () => {

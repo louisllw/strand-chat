@@ -35,19 +35,48 @@ const parseJson = async (response: Response) => {
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const AUTH_REFRESH_PATH = '/api/auth/refresh';
 let csrfToken: string | null = null;
 let csrfPromise: Promise<string> | null = null;
+let authRefreshPromise: Promise<boolean> | null = null;
 
 export const AUTH_UNAUTHORIZED_EVENT = 'auth:unauthorized';
 
+const isAuthEndpoint = (path: string) => path.startsWith('/api/auth/');
+
 const shouldNotifyUnauthorized = (path: string) => {
-  return !['/api/auth/login', '/api/auth/register', '/api/auth/refresh'].some(prefix => path.startsWith(prefix));
+  return !isAuthEndpoint(path);
 };
 
 const notifyUnauthorized = (path: string) => {
   if (typeof window === 'undefined') return;
   if (!shouldNotifyUnauthorized(path)) return;
   window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT, { detail: { path, status: 401 } }));
+};
+
+const refreshAuth = async () => {
+  if (authRefreshPromise) return authRefreshPromise;
+  authRefreshPromise = (async () => {
+    try {
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      const token = await getCsrfToken();
+      headers.set('x-csrf-token', token);
+      const response = await fetch(`${API_BASE}${AUTH_REFRESH_PATH}`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
+      if (!response.ok) return false;
+      const data = await parseJson(response);
+      return Boolean(data && typeof data === 'object' && 'user' in data);
+    } catch {
+      return false;
+    } finally {
+      authRefreshPromise = null;
+    }
+  })();
+  return authRefreshPromise;
 };
 
 const getCsrfToken = async () => {
@@ -115,6 +144,7 @@ export const apiFetch = async <T>(path: string, options: ApiFetchOptions = {}): 
   }
   const maxRetries = SAFE_METHODS.has(method) ? (retry ?? 2) : 0;
   let attempt = 0;
+  let attemptedAuthRefresh = false;
 
   while (true) {
     try {
@@ -125,6 +155,13 @@ export const apiFetch = async <T>(path: string, options: ApiFetchOptions = {}): 
       });
 
       if (response.status === 401) {
+        if (!attemptedAuthRefresh && !isAuthEndpoint(path)) {
+          attemptedAuthRefresh = true;
+          const refreshed = await refreshAuth();
+          if (refreshed) {
+            continue;
+          }
+        }
         notifyUnauthorized(path);
       }
 

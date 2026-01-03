@@ -17,6 +17,8 @@ import { createSocketManager } from './socket/manager.js';
 import { registerSocketHandlers } from './socket/handlers.js';
 import { query } from './db.js';
 import { logger } from './utils/logger.js';
+import { startMessageReadCleanup } from './services/messageReadCleanup.js';
+import { buildCspDirectives } from './utils/csp.js';
 
 const app = express();
 const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1';
@@ -53,17 +55,30 @@ app.use((req, res, next) => {
   next();
 });
 app.use(helmet());
+const isProduction = process.env.NODE_ENV === 'production';
+const cspReportUri = process.env.CSP_REPORT_URI || '/api/csp-report';
+if (isProduction) {
+  app.use(
+    helmet.hsts({
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    })
+  );
+}
 app.use(
   helmet.contentSecurityPolicy({
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-    },
+    directives: buildCspDirectives(isProduction, cspReportUri),
   })
 );
-app.use(express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.post(cspReportUri, (req, res) => {
+  const report = req.body;
+  if (process.env.NODE_ENV !== 'production') {
+    logger.warn('[csp] violation report', { report });
+  }
+  res.status(204).end();
+});
 app.use(cookieParser());
 app.use(ensureCsrfCookie);
 app.use(requireCsrf);
@@ -97,3 +112,5 @@ server.listen(port, () => {
     logger.info('Server listening', { url: `http://localhost:${port}` });
   }
 });
+
+startMessageReadCleanup();

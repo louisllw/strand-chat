@@ -28,12 +28,13 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const flushMessagesRef = useRef<number | null>(null);
   const isFlushingRef = useRef(false);
   const markReadTimersRef = useRef<Record<string, number>>({});
+  const lastReadAtRef = useRef<Record<string, number>>({});
   const persistTimersRef = useRef<Record<string, number>>({});
   const conversationsRef = useRef<Conversation[]>([]);
   const currentUsername = useMemo(() => (user?.username || '').toLowerCase(), [user?.username]);
 
   const reportError = useCallback((title: string, description: string, error: unknown) => {
-    console.error(`[ChatMessages] ${title}`, error);
+    void error;
     toast({
       title,
       description,
@@ -68,6 +69,16 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       markAsRead(conversationId);
     }, 300);
   }, [markAsRead]);
+
+  const shouldMarkRead = useCallback((conversationId: string, unreadCount?: number) => {
+    if (!conversationId) return false;
+    if (!unreadCount || unreadCount <= 0) return false;
+    const now = Date.now();
+    const lastAt = lastReadAtRef.current[conversationId] || 0;
+    if (now - lastAt < 5000) return false;
+    lastReadAtRef.current[conversationId] = now;
+    return true;
+  }, []);
 
   const normalizeReactions = useCallback((reactions: MessageReaction[] | undefined) => (
     (reactions || []).map((reaction) => ({
@@ -126,17 +137,29 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setMessages(normalized);
         persistMessages(activeConversation.id, normalized);
         setHasMoreMessages(data.messages.length >= messagePageSizeRef.current);
-        markAsRead(activeConversation.id);
+        if (!activeConversation.leftAt && shouldMarkRead(activeConversation.id, activeConversation.unreadCount)) {
+          scheduleMarkAsRead(activeConversation.id);
+        }
       } catch (error) {
         reportError('Failed to load messages', 'Please try again in a moment.', error);
         setMessages([]);
       }
     };
     loadMessages();
-    if (socket?.connected) {
+    if (socket?.connected && !activeConversation.leftAt) {
       emit('conversation:join', activeConversation.id);
     }
-  }, [activeConversation, normalizeMessage, emit, markAsRead, persistMessages, reportError, socket]);
+  }, [
+    activeConversation,
+    normalizeMessage,
+    emit,
+    markAsRead,
+    persistMessages,
+    reportError,
+    scheduleMarkAsRead,
+    shouldMarkRead,
+    socket,
+  ]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!activeConversation || isLoadingOlder || !hasMoreMessages) return 0;
@@ -215,7 +238,10 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
           persistMessages(activeId, next);
           return next;
         });
-        scheduleMarkAsRead(activeId);
+        const activeMeta = conversationsRef.current.find(conv => conv.id === activeId);
+        if (activeId && !activeMeta?.leftAt && shouldMarkRead(activeId, activeMeta?.unreadCount)) {
+          scheduleMarkAsRead(activeId);
+        }
       }
 
       applyMessageUpdates(updates, activeId);
@@ -231,7 +257,16 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
+    const MAX_QUEUED_MESSAGES = 1000;
     const queueMessage = (message: Message) => {
+      let totalQueued = 0;
+      Object.values(messageQueueRef.current).forEach((items) => {
+        totalQueued += items.length;
+      });
+      if (totalQueued >= MAX_QUEUED_MESSAGES) {
+        messageQueueRef.current = {};
+        totalQueued = 0;
+      }
       const list = messageQueueRef.current[message.conversationId] || [];
       list.push(message);
       messageQueueRef.current[message.conversationId] = list;
@@ -275,6 +310,7 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
     persistMessages,
     scheduleMarkAsRead,
     applyMessageUpdates,
+    shouldMarkRead,
   ]);
 
   const sendMessage = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text') => {

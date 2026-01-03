@@ -13,7 +13,7 @@ export interface ChatConversationsContextType {
   createDirectConversation: (username: string) => Promise<Conversation | null>;
   createGroupConversation: (name: string, usernames: string[]) => Promise<Conversation | null>;
   addGroupMembers: (conversationId: string, usernames: string[]) => Promise<void>;
-  leaveGroup: (conversationId: string) => Promise<void>;
+  leaveGroup: (conversationId: string, delegateUserId?: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   refreshConversations: () => Promise<Conversation[]>;
 }

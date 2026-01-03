@@ -18,6 +18,6 @@ export const validate = (schema: ZodTypeAny) => (req: Request, res: Response, ne
   const parsed = result.data as { body: unknown; params: unknown; query: unknown };
   req.body = parsed.body as Request['body'];
   req.params = parsed.params as Request['params'];
-  req.query = parsed.query as Request['query'];
+  Object.assign(req.query, parsed.query as Request['query']);
   return next();
 };

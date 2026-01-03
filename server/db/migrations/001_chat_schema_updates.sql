@@ -33,3 +33,6 @@ alter table messages drop constraint if exists messages_type_check;
 alter table messages
   add constraint messages_type_check
   check (type in ('text', 'image', 'file', 'system'));
+
+create unique index if not exists idx_users_username_normalized_unique
+  on users (regexp_replace(lower(trim(username)), '^@+', ''));

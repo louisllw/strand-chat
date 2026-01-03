@@ -74,8 +74,13 @@ export interface Conversation {
   lastMessage?: Message;
   unreadCount: number;
   avatar?: string;
+  leftAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ConversationMember extends User {
+  role: 'admin' | 'member';
 }
 
 export interface AuthState {

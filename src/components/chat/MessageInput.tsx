@@ -89,7 +89,9 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     if (!isEmojiPickerOpen) return;
     apiFetch<{ emojis: string[] }>('/api/users/me/emoji-recents')
       .then(data => setRecentEmojis(data.emojis))
-      .catch(() => {});
+      .catch((error) => {
+        void error;
+      });
   }, [isEmojiPickerOpen]);
 
   const addEmoji = (emoji: string) => {
@@ -114,7 +116,9 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     apiFetch('/api/users/me/emoji-recents', {
       method: 'POST',
       body: JSON.stringify({ emoji }),
-    }).catch(() => {});
+    }).catch((error) => {
+      void error;
+    });
   };
 
   const emojiData = emojiMartData as {
@@ -167,8 +171,10 @@ export const MessageInput = ({ className }: MessageInputProps) => {
       .map(item => item.emoji as string);
   }, [emojiCategories, emojiIndex, emojiQuery]);
 
+  const isLeftConversation = Boolean(activeConversation?.leftAt);
+
   const handleSend = () => {
-    if (message.trim()) {
+    if (message.trim() && !isLeftConversation) {
       sendMessage(message.trim());
       setMessage('');
       if (textareaRef.current) {
@@ -181,6 +187,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isLeftConversation) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -188,6 +195,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   };
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isLeftConversation) return;
     setMessage(e.target.value);
     // Auto-resize textarea
     const textarea = e.target;
@@ -216,6 +224,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
       ref={containerRef}
       className={cn(
         'absolute bottom-0 left-0 right-0 z-20 border-t border-border bg-card p-3 sm:p-4 pb-[calc(env(safe-area-inset-bottom)+6px)]',
+        isLeftConversation && 'opacity-70',
         className
       )}
     >
@@ -252,9 +261,10 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                 window.dispatchEvent(new CustomEvent('chat:input-focus'));
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
+              placeholder={isLeftConversation ? 'You left this conversation.' : 'Type a message...'}
               rows={1}
               className="w-full resize-none rounded-xl border border-input bg-background px-3 sm:px-4 py-2.5 sm:py-3 pr-20 sm:pr-24 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all duration-200 max-h-36"
+              disabled={isLeftConversation}
             />
             
             {/* Emoji and mic buttons inside input */}
@@ -264,6 +274,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                   variant="icon"
                   size="iconSm"
                   onClick={toggleEmojiPicker}
+                  disabled={isLeftConversation}
                 >
                   <Smile className="h-5 w-5" />
                 </Button>
@@ -379,7 +390,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
           {/* Send button */}
           <Button
             onClick={handleSend}
-            disabled={!message.trim()}
+            disabled={!message.trim() || isLeftConversation}
             className="rounded-xl h-10 w-10 sm:h-11 sm:w-11 p-0"
           >
             <Send className="h-5 w-5" />
