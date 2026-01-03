@@ -69,11 +69,11 @@ test('socket handlers broadcast messages and reactions', { skip: !shouldRunInteg
   const tokenB = signToken({ userId: userB.id });
   const cookieA = `strand_auth=${tokenA}`;
   const cookieB = `strand_auth=${tokenB}`;
-  const clientA = createClient(`http://localhost:${port}`, {
+  const clientA = createClient(`http://127.0.0.1:${port}`, {
     transports: ['websocket'],
     extraHeaders: { Cookie: cookieA },
   });
-  const clientB = createClient(`http://localhost:${port}`, {
+  const clientB = createClient(`http://127.0.0.1:${port}`, {
     transports: ['websocket'],
     extraHeaders: { Cookie: cookieB },
   });

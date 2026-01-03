@@ -24,7 +24,7 @@ test('auth register/login flow (integration)', { skip: !shouldRun }, async () =>
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
 
   const port = 3102;
-  const baseUrl = `http://localhost:${port}`;
+  const baseUrl = `http://127.0.0.1:${port}`;
   const serverProcess = spawn('node', ['dist/index.js'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {

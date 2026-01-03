@@ -40,7 +40,7 @@ test('conversation, message, reaction, and read flows (integration)', { skip: !s
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
 
   const port = 3103;
-  const baseUrl = `http://localhost:${port}`;
+  const baseUrl = `http://127.0.0.1:${port}`;
   const serverProcess = spawn('node', ['dist/index.js'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
@@ -125,7 +125,7 @@ test('direct conversations created via /api/conversations are deduped (integrati
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
 
   const port = 3104;
-  const baseUrl = `http://localhost:${port}`;
+  const baseUrl = `http://127.0.0.1:${port}`;
   const serverProcess = spawn('node', ['dist/index.js'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
