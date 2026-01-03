@@ -81,6 +81,7 @@ test('socket handlers broadcast messages and reactions', { skip: !shouldRunInteg
   try {
     await waitForConnect(clientA);
     await waitForConnect(clientB);
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const receivedMessage = waitForEvent<{ id: string; conversationId: string }>(clientB, 'message:new');
     const sendAck = await emitWithAck<{ message: { id: string; conversationId: string } }>(clientA, 'message:send', {
