@@ -9,6 +9,7 @@ import {
   hideConversation,
   leaveConversation,
   addMembersToConversation,
+  removeMembersFromConversation,
   markConversationAsRead,
 } from '../services/conversationService.js';
 import { listMessages, createMessage } from '../services/messageService.js';
@@ -138,7 +139,13 @@ export const createConversationController = (socketManager: SocketManager) => ({
 
     result.unhiddenUserIds.forEach((memberId) => {
       socketManager.emitToUser(memberId, 'conversation:created', { conversationId });
-      void socketManager.addConversationToUserSockets(memberId, conversationId);
+      socketManager.addConversationToUserSockets(memberId, conversationId).catch((error) => {
+        logger.warn('[socket] add conversation failed', {
+          userId: memberId,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
 
     socketManager.emitToConversation(conversationId, 'message:new', result.message);
@@ -165,7 +172,13 @@ export const createConversationController = (socketManager: SocketManager) => ({
     });
     memberIds.forEach((memberId) => {
       socketManager.emitToUser(memberId, 'conversation:created', { conversationId });
-      void socketManager.addConversationToUserSockets(memberId, conversationId);
+      socketManager.addConversationToUserSockets(memberId, conversationId).catch((error) => {
+        logger.warn('[socket] add conversation failed', {
+          userId: memberId,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
     res.json({ conversationId });
   },
@@ -176,7 +189,13 @@ export const createConversationController = (socketManager: SocketManager) => ({
     const { conversationId, memberIds } = await createDirectChat({ userId, username });
     memberIds.forEach((memberId) => {
       socketManager.emitToUser(memberId, 'conversation:created', { conversationId });
-      void socketManager.addConversationToUserSockets(memberId, conversationId);
+      socketManager.addConversationToUserSockets(memberId, conversationId).catch((error) => {
+        logger.warn('[socket] add conversation failed', {
+          userId: memberId,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
     res.json({ conversationId });
   },
@@ -187,7 +206,13 @@ export const createConversationController = (socketManager: SocketManager) => ({
     const { conversationId, memberIds } = await createGroupChat({ userId, name, usernames });
     memberIds.forEach((memberId) => {
       socketManager.emitToUser(memberId, 'conversation:created', { conversationId });
-      void socketManager.addConversationToUserSockets(memberId, conversationId);
+      socketManager.addConversationToUserSockets(memberId, conversationId).catch((error) => {
+        logger.warn('[socket] add conversation failed', {
+          userId: memberId,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
     res.json({ conversationId });
   },
@@ -203,7 +228,12 @@ export const createConversationController = (socketManager: SocketManager) => ({
   leaveConversation: async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const conversationId = req.params.id;
-    const result = await leaveConversation({ conversationId, userId });
+    const { delegateUserId } = req.body || {};
+    const result = await leaveConversation({ conversationId, userId, delegateUserId });
+    if (result.remainingMemberIds.length === 0) {
+      res.json({ ok: true, deleted: true });
+      return;
+    }
     void socketManager.removeConversationFromUserSockets(userId, conversationId);
 
     if (result.systemMessage) {
@@ -238,5 +268,36 @@ export const createConversationController = (socketManager: SocketManager) => ({
     });
 
     res.json({ added: result.added });
+  },
+
+  removeMembers: async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const conversationId = req.params.id;
+    const { usernames } = req.body || {};
+    const result = await removeMembersFromConversation({ conversationId, userId, usernames });
+    if (result.removed === 0) {
+      return res.json({ removed: 0 });
+    }
+    const removedIds = result.removedIds ?? [];
+    const currentMembers = result.currentMembers ?? [];
+
+    if (result.systemMessage) {
+      socketManager.emitToConversation(conversationId, 'message:new', result.systemMessage);
+    }
+    removedIds.forEach((memberId) => {
+      socketManager.emitToUser(memberId, 'conversation:updated', { conversationId });
+      socketManager.removeConversationFromUserSockets(memberId, conversationId).catch((error) => {
+        logger.warn('[socket] remove conversation failed', {
+          userId: memberId,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    });
+    currentMembers.forEach((memberId) => {
+      socketManager.emitToUser(memberId, 'conversation:updated', { conversationId });
+    });
+
+    res.json({ removed: result.removed });
   },
 });

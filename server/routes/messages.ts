@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { SocketManager } from '../socket/manager.js';
 import { createMessageController } from '../controllers/messageController.js';
 import { requireAuth } from '../middleware/auth.js';
+import { messageRateLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
@@ -20,7 +21,7 @@ const createMessagesRouter = (socketManager: SocketManager) => {
     query: z.object({}),
   });
 
-  router.post('/:id/reactions', requireAuth, validate(toggleReactionSchema), asyncHandler(controller.toggleReaction));
+  router.post('/:id/reactions', requireAuth, messageRateLimiter, validate(toggleReactionSchema), asyncHandler(controller.toggleReaction));
 
   return router;
 };

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import type { SocketManager } from '../socket/manager.js';
 import { createConversationController } from '../controllers/conversationController.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireGroupAdmin } from '../middleware/requireGroupAdmin.js';
+import { apiWriteRateLimiter, messageRateLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
@@ -79,22 +81,53 @@ const createConversationsRouter = (socketManager: SocketManager) => {
     query: z.object({}),
   });
 
+  const removeMembersSchema = z.object({
+    body: z.object({
+      usernames: z.array(z.string().min(1)).min(1),
+    }),
+    params: idParams,
+    query: z.object({}),
+  });
+
   const idOnlySchema = z.object({
     body: z.object({}).optional(),
     params: idParams,
     query: z.object({}),
   });
 
+  const leaveSchema = z.object({
+    body: z.object({
+      delegateUserId: z.string().min(1).optional(),
+    }).optional(),
+    params: idParams,
+    query: z.object({}),
+  });
+
   router.get('/', requireAuth, validate(listConversationsSchema), asyncHandler(controller.listConversations));
   router.get('/:id/messages', requireAuth, validate(listMessagesSchema), asyncHandler(controller.listMessages));
-  router.post('/:id/messages', requireAuth, validate(sendMessageSchema), asyncHandler(controller.sendMessage));
-  router.post('/:id/read', requireAuth, validate(idOnlySchema), asyncHandler(controller.markRead));
-  router.post('/', requireAuth, validate(createConversationSchema), asyncHandler(controller.createConversation));
-  router.post('/direct', requireAuth, validate(createDirectSchema), asyncHandler(controller.createDirectConversation));
-  router.post('/group', requireAuth, validate(createGroupSchema), asyncHandler(controller.createGroupConversation));
-  router.delete('/:id', requireAuth, validate(idOnlySchema), asyncHandler(controller.deleteConversation));
-  router.post('/:id/leave', requireAuth, validate(idOnlySchema), asyncHandler(controller.leaveConversation));
-  router.post('/:id/members', requireAuth, validate(addMembersSchema), asyncHandler(controller.addMembers));
+  router.post('/:id/messages', requireAuth, messageRateLimiter, validate(sendMessageSchema), asyncHandler(controller.sendMessage));
+  router.post('/:id/read', requireAuth, apiWriteRateLimiter, validate(idOnlySchema), asyncHandler(controller.markRead));
+  router.post('/', requireAuth, apiWriteRateLimiter, validate(createConversationSchema), asyncHandler(controller.createConversation));
+  router.post('/direct', requireAuth, apiWriteRateLimiter, validate(createDirectSchema), asyncHandler(controller.createDirectConversation));
+  router.post('/group', requireAuth, apiWriteRateLimiter, validate(createGroupSchema), asyncHandler(controller.createGroupConversation));
+  router.delete('/:id', requireAuth, apiWriteRateLimiter, validate(idOnlySchema), asyncHandler(controller.deleteConversation));
+  router.post('/:id/leave', requireAuth, apiWriteRateLimiter, validate(leaveSchema), asyncHandler(controller.leaveConversation));
+  router.post(
+    '/:id/members',
+    requireAuth,
+    requireGroupAdmin,
+    apiWriteRateLimiter,
+    validate(addMembersSchema),
+    asyncHandler(controller.addMembers)
+  );
+  router.post(
+    '/:id/members/remove',
+    requireAuth,
+    requireGroupAdmin,
+    apiWriteRateLimiter,
+    validate(removeMembersSchema),
+    asyncHandler(controller.removeMembers)
+  );
 
   return router;
 };

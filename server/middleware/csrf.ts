@@ -11,6 +11,25 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const CSRF_STORE_PREFIX = 'csrf:';
 const csrfStore = new Map<string, { token: string; expiresAt: number }>();
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+const originMatches = (origin: string, allowAll: boolean, allowedOrigins: string[]) => {
+  if (allowAll) return true;
+  return allowedOrigins.includes(origin);
+};
+
+const getAllowedOrigins = () => (process.env.CLIENT_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const isTrustedOrigin = (req: Request) => {
+  const origin = req.get?.('origin');
+  if (!origin) return true;
+  const allowAll = process.env.NODE_ENV !== 'production' || process.env.CORS_ALLOW_ALL === 'true';
+  const allowedOrigins = getAllowedOrigins();
+  if (allowAll) return true;
+  if (allowedOrigins.length === 0) return false;
+  return originMatches(origin, allowAll, allowedOrigins);
+};
 
 const cleanup = () => {
   const now = Date.now();
@@ -83,6 +102,9 @@ export const ensureCsrfCookie = (req: Request, res: Response, next: NextFunction
 };
 
 export const issueCsrfToken = async (req: Request, res: Response) => {
+  if (!isTrustedOrigin(req)) {
+    return res.status(403).json({ error: 'Invalid origin' });
+  }
   const sessionId = ensureCsrfSession(req, res);
   const token = generateToken();
   await setStoredToken(sessionId, token);

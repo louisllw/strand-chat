@@ -231,7 +231,16 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
+    const MAX_QUEUED_MESSAGES = 1000;
     const queueMessage = (message: Message) => {
+      let totalQueued = 0;
+      Object.values(messageQueueRef.current).forEach((items) => {
+        totalQueued += items.length;
+      });
+      if (totalQueued >= MAX_QUEUED_MESSAGES) {
+        messageQueueRef.current = {};
+        totalQueued = 0;
+      }
       const list = messageQueueRef.current[message.conversationId] || [];
       list.push(message);
       messageQueueRef.current[message.conversationId] = list;

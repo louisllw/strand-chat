@@ -38,13 +38,14 @@ export const addEmojiRecentForMe = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   const { id } = req.params;
   const row = await getPublicUserProfile(id);
+  const isSelf = req.user?.userId === row.id;
   res.json({
     user: {
       id: row.id,
       username: row.username,
       avatar: row.avatar_url || null,
       banner: row.banner_url || null,
-      phone: row.phone || null,
+      phone: isSelf ? row.phone || null : null,
       bio: sanitizeProfileField(row.bio) || null,
       website: sanitizeProfileField(row.website_url) || null,
       socialX: sanitizeProfileField(row.social_x) || null,

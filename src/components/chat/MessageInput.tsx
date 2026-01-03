@@ -89,7 +89,9 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     if (!isEmojiPickerOpen) return;
     apiFetch<{ emojis: string[] }>('/api/users/me/emoji-recents')
       .then(data => setRecentEmojis(data.emojis))
-      .catch(() => {});
+      .catch((error) => {
+        console.warn('[MessageInput] Failed to load recent emojis', error);
+      });
   }, [isEmojiPickerOpen]);
 
   const addEmoji = (emoji: string) => {
@@ -114,7 +116,9 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     apiFetch('/api/users/me/emoji-recents', {
       method: 'POST',
       body: JSON.stringify({ emoji }),
-    }).catch(() => {});
+    }).catch((error) => {
+      console.warn('[MessageInput] Failed to save recent emoji', error);
+    });
   };
 
   const emojiData = emojiMartData as {

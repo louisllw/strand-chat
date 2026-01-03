@@ -149,6 +149,37 @@ export const getConversationTypeForMember = async ({
   return result.rows[0]?.type || null;
 };
 
+export const getConversationMemberRole = async ({
+  conversationId,
+  userId,
+}: {
+  conversationId: string;
+  userId: string;
+}) => {
+  const result = await query(
+    `select role
+     from conversation_members
+     where conversation_id = $1 and user_id = $2 and hidden_at is null`,
+    [conversationId, userId]
+  );
+  return result.rows[0]?.role || null;
+};
+
+export const hasConversationAdmin = async ({
+  conversationId,
+}: {
+  conversationId: string;
+}) => {
+  const result = await query(
+    `select 1
+     from conversation_members
+     where conversation_id = $1 and role = 'admin'
+     limit 1`,
+    [conversationId]
+  );
+  return (result.rowCount ?? 0) > 0;
+};
+
 export const listConversationIdsForUser = async (
   userId: string,
   client: PoolClient | null = null
@@ -217,6 +248,14 @@ export const removeConversationMember = async ({
   );
 };
 
+export const deleteConversation = async ({
+  conversationId,
+}: {
+  conversationId: string;
+}) => {
+  await query('delete from conversations where id = $1', [conversationId]);
+};
+
 export const listConversationMembers = async (conversationId: string) => {
   const result = await query(
     'select user_id from conversation_members where conversation_id = $1',
@@ -252,20 +291,32 @@ export const createConversation = async (
     name,
     type,
     memberIds,
+    adminId,
+    directKey,
   }: {
     name?: string | null;
     type: string;
     memberIds: string[];
+    adminId?: string | null;
+    directKey?: string | null;
   },
   client: PoolClient | null
 ) => {
-  const convoResult = await runQuery(
-    client,
-    `insert into conversations (name, type)
-     values ($1, $2)
-     returning id, name, type, created_at, updated_at`,
-    [name || null, type]
-  );
+  const convoResult = directKey
+    ? await runQuery(
+      client,
+      `insert into conversations (name, type, direct_key)
+       values ($1, $2, $3)
+       returning id, name, type, created_at, updated_at`,
+      [name || null, type, directKey]
+    )
+    : await runQuery(
+      client,
+      `insert into conversations (name, type)
+       values ($1, $2)
+       returning id, name, type, created_at, updated_at`,
+      [name || null, type]
+    );
   const conversation = convoResult.rows[0];
   await runQuery(
     client,
@@ -279,6 +330,15 @@ export const createConversation = async (
     'update conversation_members set hidden_at = null where conversation_id = $1',
     [conversation.id]
   );
+  if (adminId) {
+    await runQuery(
+      client,
+      `update conversation_members
+       set role = 'admin'
+       where conversation_id = $1 and user_id = $2`,
+      [conversation.id, adminId]
+    );
+  }
   return conversation;
 };
 
@@ -286,18 +346,20 @@ export const createDirectConversation = async (
   {
     userId,
     otherUserId,
+    directKey,
   }: {
     userId: string;
     otherUserId: string;
+    directKey: string;
   },
   client: PoolClient | null
 ) => {
   const convoResult = await runQuery(
     client,
-    `insert into conversations (type)
-     values ('direct')
+    `insert into conversations (type, direct_key)
+     values ('direct', $1)
      returning id`,
-    []
+    [directKey]
   );
   const conversationId = convoResult.rows[0].id;
   await runQuery(
@@ -314,9 +376,11 @@ export const createGroupConversation = async (
   {
     name,
     memberIds,
+    adminId,
   }: {
     name?: string | null;
     memberIds: string[];
+    adminId?: string | null;
   },
   client: PoolClient | null
 ) => {
@@ -335,6 +399,15 @@ export const createGroupConversation = async (
      on conflict do nothing`,
     [conversationId, memberIds]
   );
+  if (adminId) {
+    await runQuery(
+      client,
+      `update conversation_members
+       set role = 'admin'
+       where conversation_id = $1 and user_id = $2`,
+      [conversationId, adminId]
+    );
+  }
   return conversationId;
 };
 
@@ -368,5 +441,40 @@ export const addConversationMembers = async (
      select $1, unnest($2::uuid[])
      on conflict do nothing`,
     [conversationId, userIds]
+  );
+};
+
+export const removeConversationMembers = async ({
+  conversationId,
+  userIds,
+}: {
+  conversationId: string;
+  userIds: string[];
+}) => {
+  if (userIds.length === 0) return;
+  await query(
+    'delete from conversation_members where conversation_id = $1 and user_id = any($2::uuid[])',
+    [conversationId, userIds]
+  );
+};
+
+export const setConversationMemberRole = async (
+  {
+    conversationId,
+    userId,
+    role,
+  }: {
+    conversationId: string;
+    userId: string;
+    role: 'admin' | 'member';
+  },
+  client: PoolClient | null
+) => {
+  await runQuery(
+    client,
+    `update conversation_members
+     set role = $3
+     where conversation_id = $1 and user_id = $2`,
+    [conversationId, userId, role]
   );
 };

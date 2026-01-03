@@ -17,6 +17,7 @@ import { createSocketManager } from './socket/manager.js';
 import { registerSocketHandlers } from './socket/handlers.js';
 import { query } from './db.js';
 import { logger } from './utils/logger.js';
+import { startMessageReadCleanup } from './services/messageReadCleanup.js';
 
 const app = express();
 const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1';
@@ -63,7 +64,7 @@ app.use(
     },
   })
 );
-app.use(express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(ensureCsrfCookie);
 app.use(requireCsrf);
@@ -97,3 +98,5 @@ server.listen(port, () => {
     logger.info('Server listening', { url: `http://localhost:${port}` });
   }
 });
+
+startMessageReadCleanup();

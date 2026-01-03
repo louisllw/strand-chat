@@ -25,6 +25,8 @@ const RETRYABLE_CODES = new Set([
 ]);
 const MAX_RETRIES = Number(process.env.DB_RETRY_ATTEMPTS || 2);
 const RETRY_DELAY_MS = Number(process.env.DB_RETRY_DELAY_MS || 50);
+const CONNECT_RETRIES = Number(process.env.DB_CONNECT_RETRY_ATTEMPTS || 5);
+const CONNECT_RETRY_DELAY_MS = Number(process.env.DB_CONNECT_RETRY_DELAY_MS || 200);
 
 const isReadOnlyQuery = (text: string) => {
   if (!text) return false;
@@ -61,13 +63,26 @@ export const query = async (text: string, params?: unknown[]): Promise<QueryResu
 };
 
 export const getClient = async (): Promise<PoolClient> => {
-  const start = process.hrtime.bigint();
-  const client = await pool.connect();
-  if (shouldLogTimings()) {
-    const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-    logger.debug('[db] connect timing', { durationMs: Number(durationMs.toFixed(1)) });
+  let attempt = 0;
+  while (true) {
+    const start = process.hrtime.bigint();
+    try {
+      const client = await pool.connect();
+      if (shouldLogTimings()) {
+        const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+        logger.debug('[db] connect timing', { durationMs: Number(durationMs.toFixed(1)) });
+      }
+      return client;
+    } catch (error) {
+      attempt += 1;
+      if (attempt > CONNECT_RETRIES) {
+        throw error;
+      }
+      const delay = Math.min(CONNECT_RETRY_DELAY_MS * attempt, 2000);
+      logger.warn('[db] connect retrying', { attempt, delay });
+      await sleep(delay);
+    }
   }
-  return client;
 };
 
 export const withTransaction = async <T>(callback: (client: PoolClient) => Promise<T>): Promise<T> => {

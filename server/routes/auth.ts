@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, logout, me, refresh, csrf } from '../controllers/authController.js';
+import { register, login, logout, logoutAll, compromised, me, refresh, csrf } from '../controllers/authController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { authRateLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -32,6 +32,8 @@ router.post('/login', authRateLimiter, validate(loginSchema), asyncHandler(login
 router.get('/csrf', asyncHandler(csrf));
 router.post('/refresh', requireAuth, asyncHandler(refresh));
 router.post('/logout', requireAuth, asyncHandler(logout));
+router.post('/logout-all', requireAuth, asyncHandler(logoutAll));
+router.post('/compromised', requireAuth, asyncHandler(compromised));
 router.get('/me', requireAuth, asyncHandler(me));
 
 export default router;

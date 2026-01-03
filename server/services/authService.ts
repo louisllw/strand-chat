@@ -6,6 +6,7 @@ import {
   isEmailTaken,
   isUsernameTaken,
   updateUserStatus,
+  markUserCompromised,
 } from '../models/userModel.js';
 import { normalizeUsername, isValidUsername } from '../utils/validation.js';
 import { ServiceError } from '../utils/errors.js';
@@ -21,6 +22,16 @@ export const registerUser = async ({
 }) => {
   if (!username || !email || !password) {
     throw new ServiceError(400, 'AUTH_MISSING_FIELDS', 'Missing fields');
+  }
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  if (password.length < 8 || !hasUpper || !hasLower || !hasNumber) {
+    throw new ServiceError(
+      400,
+      'AUTH_PASSWORD_WEAK',
+      'Password must be at least 8 characters and include uppercase, lowercase, and a number.'
+    );
   }
 
   const normalizedUsername = normalizeUsername(username);
@@ -51,6 +62,9 @@ export const registerUser = async ({
   return userRow;
 };
 
+const DUMMY_PASSWORD_HASH =
+  '$2a$12$yqbqChwXp7YbWk5mV0MZVOW/6cZc0cx0yGRvFSXWm7KJcS4H0fN7S';
+
 export const loginUser = async ({
   email,
   password,
@@ -63,12 +77,9 @@ export const loginUser = async ({
   }
 
   const userRow = await findUserByEmail(email.toLowerCase());
-  if (!userRow) {
-    throw new ServiceError(401, 'AUTH_INVALID_CREDENTIALS', 'Invalid credentials');
-  }
-
-  const match = await bcrypt.compare(password, userRow.password_hash);
-  if (!match) {
+  const passwordHash = userRow?.password_hash || DUMMY_PASSWORD_HASH;
+  const match = await bcrypt.compare(password, passwordHash);
+  if (!match || !userRow) {
     throw new ServiceError(401, 'AUTH_INVALID_CREDENTIALS', 'Invalid credentials');
   }
   return userRow;
@@ -76,6 +87,10 @@ export const loginUser = async ({
 
 export const logoutUser = async (userId: string) => {
   await updateUserStatus(userId, 'offline');
+};
+
+export const markAccountCompromised = async (userId: string) => {
+  await markUserCompromised(userId);
 };
 
 export const getCurrentUser = async (userId: string) => {

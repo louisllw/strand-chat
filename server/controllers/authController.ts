@@ -27,6 +27,9 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const refresh = async (req: Request, res: Response) => {
+  if (req.authToken) {
+    await revokeToken(req.authToken, req.user);
+  }
   const userRow = await getCurrentUser(req.user!.userId);
   const user = mapUser(userRow);
   const token = signToken({ userId: user.id });

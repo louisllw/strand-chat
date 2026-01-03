@@ -70,6 +70,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
 
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(initialActiveConversation);
+  const activeConversationRef = useRef<Conversation | null>(initialActiveConversation);
 
   const schedulePersistConversations = useCallback((next: Conversation[]) => {
     if (persistTimeoutRef.current) {
@@ -86,7 +87,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       const normalized = data.conversations.map(normalizeConversation);
       setConversations(normalized);
       schedulePersistConversations(data.conversations);
-      const lastActiveId = activeConversation?.id || safeStorage.get(STORAGE_LAST_ACTIVE_KEY);
+      const lastActiveId = activeConversationRef.current?.id || safeStorage.get(STORAGE_LAST_ACTIVE_KEY);
       if (lastActiveId) {
         const matching = normalized.find(conv => conv.id === lastActiveId) || null;
         setActiveConversation(matching);
@@ -97,7 +98,11 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       setConversations([]);
       return [];
     }
-  }, [normalizeConversation, activeConversation, schedulePersistConversations]);
+  }, [normalizeConversation, schedulePersistConversations]);
+
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
 
   const markAsRead = useCallback((conversationId: string) => {
     setConversations(prev => {
@@ -231,7 +236,6 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshConversations();
   }, [refreshConversations]);
 

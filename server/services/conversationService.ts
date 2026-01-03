@@ -4,18 +4,23 @@ import {
   createConversation,
   createDirectConversation,
   createGroupConversation,
+  deleteConversation,
   findDirectConversation,
+  getConversationMemberRole,
   getConversationMembership,
   getConversationMembershipMeta,
   getConversationTypeForMember,
+  hasConversationAdmin,
   hideConversationForUser,
   listConversationIdsForUser,
   listConversationMembers,
   listConversationsForUserPaginated,
   listExistingConversationMembers,
   markConversationRead,
+  removeConversationMembers,
   removeConversationMember,
   revealConversationMembership,
+  setConversationMemberRole,
 } from '../models/conversationModel.js';
 import {
   findUserIdByNormalizedUsername,
@@ -56,6 +61,12 @@ const mapConversationRow = (row: {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
+
+const getDirectKey = (userId: string, otherUserId: string) => {
+  return userId < otherUserId
+    ? `${userId}:${otherUserId}`
+    : `${otherUserId}:${userId}`;
+};
 
 export const listConversations = async ({
   userId,
@@ -108,12 +119,24 @@ export const createConversationWithParticipants = async ({
   if (!Array.isArray(participantIds) || participantIds.length === 0) {
     throw new ServiceError(400, 'CONVERSATION_PARTICIPANTS_REQUIRED', 'Participants required');
   }
+  if (type === 'direct' && participantIds.length !== 1) {
+    throw new ServiceError(400, 'CONVERSATION_DIRECT_TWO_REQUIRED', 'Direct chats require exactly one participant');
+  }
 
   try {
     return await withTransaction(async (client) => {
       const members = Array.from(new Set([userId, ...participantIds]));
       const conversationType: ConversationType = type ?? 'direct';
-      const conversation = await createConversation({ name, type: conversationType, memberIds: members }, client);
+      const directKey = conversationType === 'direct'
+        ? getDirectKey(userId, participantIds[0])
+        : null;
+      const conversation = await createConversation({
+        name,
+        type: conversationType,
+        memberIds: members,
+        adminId: conversationType === 'group' ? userId : null,
+        directKey,
+      }, client);
       return { conversationId: conversation.id, memberIds: members };
     });
   } catch {
@@ -157,10 +180,22 @@ export const createDirectChat = async ({
 
   try {
     return await withTransaction(async (client) => {
-      const conversationId = await createDirectConversation({ userId, otherUserId }, client);
+      const conversationId = await createDirectConversation({
+        userId,
+        otherUserId,
+        directKey: getDirectKey(userId, otherUserId),
+      }, client);
       return { conversationId, memberIds: [userId, otherUserId] };
     });
-  } catch {
+  } catch (error) {
+    const err = error as { code?: string; constraint?: string };
+    if (err.code === '23505' && err.constraint === 'idx_conversations_direct_key_unique') {
+      const existing = await findDirectConversation({ userId, otherUserId });
+      if (existing) {
+        await revealConversationMembership({ conversationId: existing, userId });
+        return { conversationId: existing, memberIds: [userId] };
+      }
+    }
     throw new ServiceError(500, 'CONVERSATION_CREATE_FAILED', 'Failed to create conversation');
   }
 };
@@ -200,7 +235,7 @@ export const createGroupChat = async ({
   const members = [userId, ...participantIds];
   try {
     return await withTransaction(async (client) => {
-      const conversationId = await createGroupConversation({ name, memberIds: members }, client);
+      const conversationId = await createGroupConversation({ name, memberIds: members, adminId: userId }, client);
       return { conversationId, memberIds: members };
     });
   } catch {
@@ -229,16 +264,36 @@ export const hideConversation = async ({
 export const leaveConversation = async ({
   conversationId,
   userId,
+  delegateUserId,
 }: {
   conversationId: string;
   userId: string;
-}): Promise<{ systemMessage: Awaited<ReturnType<typeof createSystemMessage>>; remainingMemberIds: string[] }> => {
+  delegateUserId?: string | null;
+}): Promise<{ systemMessage: Awaited<ReturnType<typeof createSystemMessage>> | null; remainingMemberIds: string[] }> => {
   const conversationType = await getConversationTypeForMember({ conversationId, userId });
   if (!conversationType) {
     throw new ServiceError(403, 'CONVERSATION_FORBIDDEN', 'Forbidden');
   }
   if (conversationType !== 'group') {
     throw new ServiceError(400, 'CONVERSATION_GROUP_ONLY_LEAVE', 'Only group chats can be left');
+  }
+
+  const role = await getConversationMemberRole({ conversationId, userId });
+  if (role === 'admin') {
+    const remainingMembers = await listConversationMembers(conversationId);
+    const others = remainingMembers.filter((memberId) => memberId !== userId);
+    if (others.length === 0) {
+      await removeConversationMember({ conversationId, userId });
+      await deleteConversation({ conversationId });
+      return { systemMessage: null, remainingMemberIds: [] };
+    }
+    if (!delegateUserId || delegateUserId === userId) {
+      throw new ServiceError(400, 'CONVERSATION_ADMIN_DELEGATE_REQUIRED', 'Delegate admin before leaving');
+    }
+    if (!others.includes(delegateUserId)) {
+      throw new ServiceError(400, 'CONVERSATION_ADMIN_DELEGATE_INVALID', 'Delegate must be a member');
+    }
+    await setConversationMemberRole({ conversationId, userId: delegateUserId, role: 'admin' }, null);
   }
 
   await removeConversationMember({ conversationId, userId });
@@ -277,6 +332,15 @@ export const addMembersToConversation = async ({
   }
   if (conversationType !== 'group') {
     throw new ServiceError(400, 'CONVERSATION_GROUP_ONLY_ADD', 'Only group chats can add members');
+  }
+
+  const role = await getConversationMemberRole({ conversationId, userId });
+  if (role !== 'admin') {
+    const hasAdmin = await hasConversationAdmin({ conversationId });
+    if (hasAdmin) {
+      throw new ServiceError(403, 'CONVERSATION_ADMIN_REQUIRED', 'Admin role required');
+    }
+    await setConversationMemberRole({ conversationId, userId, role: 'admin' }, null);
   }
 
   const normalizedUsernames = Array.from(new Set(
@@ -330,6 +394,95 @@ export const addMembersToConversation = async ({
   return {
     added: newIds.length,
     addedIds: newIds,
+    systemMessage,
+    currentMembers,
+  };
+};
+
+export const removeMembersFromConversation = async ({
+  conversationId,
+  userId,
+  usernames,
+}: {
+  conversationId: string;
+  userId: string;
+  usernames: string[];
+}): Promise<{
+  removed: number;
+  removedIds?: string[];
+  systemMessage?: Awaited<ReturnType<typeof createSystemMessage>> | null;
+  currentMembers?: string[];
+}> => {
+  if (!Array.isArray(usernames) || usernames.length === 0) {
+    throw new ServiceError(400, 'CONVERSATION_GROUP_USERNAMES_REQUIRED', 'Usernames are required');
+  }
+
+  const conversationType = await getConversationTypeForMember({ conversationId, userId });
+  if (!conversationType) {
+    throw new ServiceError(403, 'CONVERSATION_FORBIDDEN', 'Forbidden');
+  }
+  if (conversationType !== 'group') {
+    throw new ServiceError(400, 'CONVERSATION_GROUP_ONLY_REMOVE', 'Only group chats can remove members');
+  }
+
+  const role = await getConversationMemberRole({ conversationId, userId });
+  const hasAdmin = await hasConversationAdmin({ conversationId });
+  if (hasAdmin && role !== 'admin') {
+    throw new ServiceError(403, 'CONVERSATION_ADMIN_REQUIRED', 'Admin role required');
+  }
+
+  const normalizedUsernames = Array.from(new Set(
+    usernames
+      .map((value) => normalizeUsername(String(value || '')))
+      .filter((value) => value && isValidUsername(value))
+  ));
+  if (normalizedUsernames.length === 0) {
+    throw new ServiceError(400, 'CONVERSATION_GROUP_NO_VALID_USERNAMES', 'No valid usernames provided');
+  }
+
+  const userRows = await findUsersByNormalizedUsernames(normalizedUsernames);
+  const candidateIds = userRows.map((row) => row.id);
+  if (candidateIds.length === 0) {
+    throw new ServiceError(404, 'CONVERSATION_GROUP_NO_MATCHING_USERS', 'No matching users found');
+  }
+
+  const existingIds = await listExistingConversationMembers({
+    conversationId,
+    userIds: candidateIds,
+  });
+  const existingSet = new Set(existingIds);
+  const removeIds = candidateIds.filter((id) => existingSet.has(id));
+  if (removeIds.length === 0) {
+    return { removed: 0 };
+  }
+  if (removeIds.includes(userId)) {
+    throw new ServiceError(400, 'CONVERSATION_GROUP_REMOVE_SELF', 'Use leave to remove yourself');
+  }
+
+  try {
+    await removeConversationMembers({ conversationId, userIds: removeIds });
+  } catch {
+    throw new ServiceError(500, 'CONVERSATION_GROUP_REMOVE_FAILED', 'Failed to remove members');
+  }
+
+  const removedNames = userRows
+    .filter((row) => removeIds.includes(row.id))
+    .map((row) => `@${row.username}`);
+  let systemMessage = null;
+  if (removedNames.length > 0) {
+    const actorResult = await query('select username from users where id = $1', [userId]);
+    const actorUsername = actorResult.rows[0]?.username || 'Someone';
+    systemMessage = await createSystemMessage(
+      conversationId,
+      userId,
+      `@${actorUsername} removed ${removedNames.join(', ')}`
+    );
+  }
+
+  const currentMembers = await listConversationMembers(conversationId);
+  return {
+    removed: removeIds.length,
+    removedIds: removeIds,
     systemMessage,
     currentMembers,
   };

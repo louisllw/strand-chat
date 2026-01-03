@@ -1,0 +1,12 @@
+services:
+  strand-db:
+    build:
+      context: server/db
+
+  strand-server:
+    build:
+      context: server
+
+  strand-web:
+    build:
+      context: .

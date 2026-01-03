@@ -18,6 +18,7 @@ create table if not exists users (
   social_youtube text,
   social_facebook text,
   social_github text,
+  compromised_at timestamptz,
   status text not null default 'offline',
   theme text not null default 'light',
   username_updated_at timestamptz not null default now(),
@@ -26,13 +27,21 @@ create table if not exists users (
   updated_at timestamptz not null default now()
 );
 
+create unique index if not exists idx_users_username_normalized_unique
+  on users (regexp_replace(lower(trim(username)), '^@+', ''));
+
 create table if not exists conversations (
   id uuid primary key default gen_random_uuid(),
   name text,
   type text not null check (type in ('direct', 'group')),
+  direct_key text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create unique index if not exists idx_conversations_direct_key_unique
+  on conversations (direct_key)
+  where type = 'direct' and direct_key is not null;
 
 create table if not exists conversation_members (
   conversation_id uuid not null references conversations(id) on delete cascade,

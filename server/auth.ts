@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 
 export interface AuthTokenPayload extends jwt.JwtPayload {
   userId: string;
+  jti?: string;
 }
 
 const COOKIE_NAME = process.env.COOKIE_NAME || 'strand_auth';
@@ -16,12 +18,18 @@ const getJwtSecret = () => {
 
 export const signToken = (payload: Record<string, unknown>) => {
   const secret = getJwtSecret();
-  return jwt.sign(payload, secret, { expiresIn: '7d' });
+  return jwt.sign({ jti: randomUUID(), ...payload }, secret, { expiresIn: '7d' });
 };
 
 export const verifyToken = (token: string): AuthTokenPayload => {
   const secret = getJwtSecret();
   return jwt.verify(token, secret) as AuthTokenPayload;
+};
+
+export const decodeToken = (token: string): AuthTokenPayload | null => {
+  const decoded = jwt.decode(token);
+  if (!decoded || typeof decoded === 'string') return null;
+  return decoded as AuthTokenPayload;
 };
 
 export const authCookieOptions = () => ({

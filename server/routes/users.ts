@@ -7,6 +7,7 @@ import {
   getUserById,
 } from '../controllers/userController.js';
 import { requireAuth } from '../middleware/auth.js';
+import { apiWriteRateLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
@@ -69,9 +70,9 @@ const userIdSchema = z.object({
 });
 
 router.get('/username-availability', requireAuth, validate(usernameAvailabilitySchema), asyncHandler(usernameAvailability));
-router.patch('/me', requireAuth, validate(updateMeSchema), asyncHandler(updateMe));
+router.patch('/me', requireAuth, apiWriteRateLimiter, validate(updateMeSchema), asyncHandler(updateMe));
 router.get('/me/emoji-recents', requireAuth, validate(emojiRecentsSchema), asyncHandler(getEmojiRecentsForMe));
-router.post('/me/emoji-recents', requireAuth, validate(addEmojiSchema), asyncHandler(addEmojiRecentForMe));
+router.post('/me/emoji-recents', requireAuth, apiWriteRateLimiter, validate(addEmojiSchema), asyncHandler(addEmojiRecentForMe));
 router.get('/:id', requireAuth, validate(userIdSchema), asyncHandler(getUserById));
 
 export default router;

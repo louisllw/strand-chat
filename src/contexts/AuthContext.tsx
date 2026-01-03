@@ -194,6 +194,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const reportCompromised = useCallback(async () => {
+    const data = await apiFetch<{ user: User }>('/api/auth/compromised', { method: 'POST' });
+    setState(prev => ({
+      ...prev,
+      user: data.user,
+      isAuthenticated: true,
+      isLoading: false,
+    }));
+    toast({
+      title: 'Account secured',
+      description: 'Signed out of other sessions.',
+    });
+  }, []);
+
   const updateUser = useCallback(async (updates: Partial<User>) => {
     if (!state.user) return;
     const data = await apiFetch<{ user: User }>('/api/users/me', {
@@ -207,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.user, setTheme]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, reportCompromised, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
