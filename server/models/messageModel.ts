@@ -298,7 +298,7 @@ export const toggleReaction = async ({
      select
        (select conversation_id from convo) as conversation_id,
        coalesce(
-         (select json_agg(row_to_json(reactions.*)) from reactions),
+         (select json_agg(row_to_json(r)) from reactions r),
          '[]'::json
        ) as reactions`,
     [messageId, userId, emoji]
