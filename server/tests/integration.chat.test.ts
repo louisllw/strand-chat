@@ -10,7 +10,7 @@ const waitForHealth = async (baseUrl: string, timeoutMs = 20000) => {
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(`${baseUrl}/api/health`);
-      if (res.ok) return;
+      if (res) return;
     } catch {
       // retry
     }
