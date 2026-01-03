@@ -9,9 +9,9 @@
     "start": "node dist/index.js",
     "migrate": "npm run build && node dist/db/migrate.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js",
-    "test:integration": "npm run build && RUN_INTEGRATION_TESTS=true node --test dist/tests/*.test.js",
-    "test:coverage": "npm run build && c8 node --test dist/tests/*.test.js"
+    "test": "npm run build && NODE_ENV=test node --test dist/tests/*.test.js",
+    "test:integration": "npm run build && NODE_ENV=test RUN_INTEGRATION_TESTS=true node --test dist/tests/*.test.js",
+    "test:coverage": "npm run build && NODE_ENV=test c8 node --test dist/tests/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
