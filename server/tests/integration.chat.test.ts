@@ -41,8 +41,9 @@ test('conversation, message, reaction, and read flows (integration)', { skip: !s
 
   const port = 3103;
   const baseUrl = `http://127.0.0.1:${port}`;
+  const serverRoot = fileURLToPath(new URL('../..', import.meta.url));
   const serverProcess = spawn('node', ['dist/index.js'], {
-    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    cwd: serverRoot,
     env: {
       ...process.env,
       PORT: String(port),
@@ -126,8 +127,9 @@ test('direct conversations created via /api/conversations are deduped (integrati
 
   const port = 3104;
   const baseUrl = `http://127.0.0.1:${port}`;
+  const serverRoot = fileURLToPath(new URL('../..', import.meta.url));
   const serverProcess = spawn('node', ['dist/index.js'], {
-    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    cwd: serverRoot,
     env: {
       ...process.env,
       PORT: String(port),
