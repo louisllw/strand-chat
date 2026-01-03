@@ -63,6 +63,7 @@ export type ServerToClientEvents = {
 
 export type ClientToServerEvents = {
   'conversation:join': (conversationId: string) => void;
+  'conversation:active': (conversationId: string | null) => void;
   'message:send': (payload: MessageSendPayload, callback?: (response: MessageSendResponse) => void) => void;
   'typing:start': (payload: TypingPayload) => void;
   'typing:stop': (payload: TypingPayload) => void;
