@@ -79,7 +79,7 @@ const Register = () => {
             Start your journey
           </h1>
           <p className="text-lg text-primary-foreground/80">
-            Join millions of people who trust us for their daily communication.
+            Join your community with a fast, private chat experience.
           </p>
         </div>
       </div>
