@@ -4,7 +4,7 @@ import { createGroupConversation, createDirectConversation } from '../../models/
 
 export const shouldRunIntegration = process.env.RUN_INTEGRATION_TESTS === 'true';
 
-const randomSuffix = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+const randomSuffix = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export const resetDb = async () => {
   await query(
