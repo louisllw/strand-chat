@@ -20,6 +20,12 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   const persistTimeoutRef = useRef<number | null>(null);
   const didInitialLoadRef = useRef(false);
   const visibilityRef = useRef(document.visibilityState === 'visible');
+  const getInitialConversationId = () => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('conversationId');
+  };
+  const pendingConversationIdRef = useRef<string | null>(getInitialConversationId());
   const currentUsername = useMemo(() => (user?.username || '').toLowerCase(), [user?.username]);
 
   const normalizeReactions = useCallback((reactions: MessageReaction[] | undefined) => (
@@ -97,6 +103,16 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       const normalized = data.conversations.map(normalizeConversation);
       setConversations(normalized);
       schedulePersistConversations(data.conversations);
+      const pendingId = pendingConversationIdRef.current;
+      if (pendingId) {
+        const pendingMatch = normalized.find(conv => conv.id === pendingId) || null;
+        pendingConversationIdRef.current = null;
+        if (pendingMatch) {
+          setActiveConversation(pendingMatch);
+          safeStorage.set(STORAGE_LAST_ACTIVE_KEY, pendingMatch.id);
+          return normalized;
+        }
+      }
       const lastActiveId = activeConversationRef.current?.id || safeStorage.get(STORAGE_LAST_ACTIVE_KEY);
       if (lastActiveId) {
         const matching = normalized.find(conv => conv.id === lastActiveId) || null;
