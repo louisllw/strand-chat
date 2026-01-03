@@ -10,7 +10,7 @@ const waitForHealth = async (baseUrl: string, timeoutMs = 20000) => {
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(`${baseUrl}/api/health`);
-      if (res.ok) return;
+      if (res) return;
     } catch {
       // retry
     }
@@ -40,9 +40,10 @@ test('conversation, message, reaction, and read flows (integration)', { skip: !s
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
 
   const port = 3103;
-  const baseUrl = `http://localhost:${port}`;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const serverRoot = fileURLToPath(new URL('../..', import.meta.url));
   const serverProcess = spawn('node', ['dist/index.js'], {
-    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    cwd: serverRoot,
     env: {
       ...process.env,
       PORT: String(port),
@@ -125,9 +126,10 @@ test('direct conversations created via /api/conversations are deduped (integrati
   assert.ok(databaseUrl, 'DATABASE_URL is required for integration tests');
 
   const port = 3104;
-  const baseUrl = `http://localhost:${port}`;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const serverRoot = fileURLToPath(new URL('../..', import.meta.url));
   const serverProcess = spawn('node', ['dist/index.js'], {
-    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    cwd: serverRoot,
     env: {
       ...process.env,
       PORT: String(port),

@@ -69,11 +69,11 @@ test('socket handlers broadcast messages and reactions', { skip: !shouldRunInteg
   const tokenB = signToken({ userId: userB.id });
   const cookieA = `strand_auth=${tokenA}`;
   const cookieB = `strand_auth=${tokenB}`;
-  const clientA = createClient(`http://localhost:${port}`, {
+  const clientA = createClient(`http://127.0.0.1:${port}`, {
     transports: ['websocket'],
     extraHeaders: { Cookie: cookieA },
   });
-  const clientB = createClient(`http://localhost:${port}`, {
+  const clientB = createClient(`http://127.0.0.1:${port}`, {
     transports: ['websocket'],
     extraHeaders: { Cookie: cookieB },
   });
@@ -81,6 +81,7 @@ test('socket handlers broadcast messages and reactions', { skip: !shouldRunInteg
   try {
     await waitForConnect(clientA);
     await waitForConnect(clientB);
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const receivedMessage = waitForEvent<{ id: string; conversationId: string }>(clientB, 'message:new');
     const sendAck = await emitWithAck<{ message: { id: string; conversationId: string } }>(clientA, 'message:send', {

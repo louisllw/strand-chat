@@ -52,13 +52,10 @@ test('messageModel toggles reactions and returns summary', { skip: !shouldRunInt
   assert.ok(created?.id);
 
   const result = await toggleReaction({ messageId: created.id as string, userId: userB.id, emoji: '👍' });
-  console.log('[DEBUG] toggleReaction result:', JSON.stringify(result, null, 2));
   assert.equal(result.conversation_id, conversationId);
   const reactions = result.reactions as Array<{ emoji: string; count: number; usernames: string[] }>;
-  console.log('[DEBUG] reactions:', JSON.stringify(reactions, null, 2));
   assert.equal(reactions.length, 1);
   assert.equal(reactions[0].emoji, '👍');
-  console.log('[DEBUG] reactions[0].count:', reactions[0].count, 'type:', typeof reactions[0].count);
   assert.equal(reactions[0].count, 1);
   assert.deepEqual(reactions[0].usernames, [userB.username]);
 });

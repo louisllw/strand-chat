@@ -271,36 +271,48 @@ export const toggleReaction = async ({
          delete from message_reactions
          where message_id = $1 and user_id = $2 and emoji = $3
            and exists (select 1 from membership)
-         returning 1
+         returning message_id, user_id, emoji
        ),
        inserted as (
          insert into message_reactions (message_id, user_id, emoji)
          select $1, $2, $3
          where exists (select 1 from membership)
            and not exists (select 1 from deleted)
-         returning 1
+         returning message_id, user_id, emoji
+       ),
+       base as (
+         select mr.message_id, mr.user_id, mr.emoji
+         from message_reactions mr
+         where mr.message_id = $1
+           and exists (select 1 from membership)
+           and not exists (
+             select 1
+             from deleted d
+             where d.message_id = mr.message_id and d.user_id = mr.user_id and d.emoji = mr.emoji
+           )
+         union all
+         select i.message_id, i.user_id, i.emoji
+         from inserted i
+         where not exists (
+           select 1
+           from message_reactions mr
+           where mr.message_id = i.message_id and mr.user_id = i.user_id and mr.emoji = i.emoji
+         )
        ),
        reactions as (
          select
-           mr.emoji,
+           b.emoji,
            count(*)::int as count,
-           bool_or(mr.user_id = $2) as reacted_by_me,
+           bool_or(b.user_id = $2) as reacted_by_me,
            json_agg(u.username order by u.username) as usernames
-         from message_reactions mr
-         join users u on u.id = mr.user_id
-         where mr.message_id = $1
-           and exists (select 1 from membership)
-         group by mr.emoji
-       ),
-       convo as (
-         select conversation_id from membership
+         from base b
+         join users u on u.id = b.user_id
+         group by b.emoji
        )
      select
-       (select conversation_id from convo) as conversation_id,
-       coalesce(
-         (select json_agg(row_to_json(r)) from reactions r),
-         '[]'::json
-       ) as reactions`,
+       (select conversation_id from membership) as conversation_id,
+       coalesce(json_agg(reactions), '[]'::json) as reactions
+     from reactions`,
     [messageId, userId, emoji]
   );
   return result.rows[0] || null;
