@@ -121,6 +121,36 @@ paths:
                 properties:
                   ok:
                     type: boolean
+  /auth/logout-all:
+    post:
+      summary: Logout all sessions
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /auth/compromised:
+    post:
+      summary: Mark account compromised
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
   /auth/me:
     get:
       summary: Current user
@@ -310,6 +340,16 @@ paths:
       security:
         - cookieAuth: []
   /conversations/{id}/members:
+    get:
+      summary: List conversation members
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
     post:
       summary: Add conversation members
       security:
@@ -320,6 +360,50 @@ paths:
           required: true
           schema:
             type: string
+  /conversations/{id}/members/remove:
+    post:
+      summary: Remove conversation members
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                usernames:
+                  type: array
+                  items:
+                    type: string
+  /conversations/{id}/members/role:
+    post:
+      summary: Update conversation member role
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
   /conversations/{id}/leave:
     post:
       summary: Leave conversation

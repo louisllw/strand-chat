@@ -41,6 +41,22 @@ Response:
 { "ok": true }
 ```
 
+### POST `/auth/logout-all`
+Clears the auth cookie and revokes all active tokens for the user.
+
+Response:
+```json
+{ "ok": true }
+```
+
+### POST `/auth/compromised`
+Marks the account compromised, revokes prior tokens, and issues a new auth cookie.
+
+Response:
+```json
+{ "user": { "id": "...", "username": "...", "email": "..." } }
+```
+
 ### GET `/auth/me`
 Returns the authenticated user.
 
@@ -193,6 +209,40 @@ Response:
 
 ### POST `/conversations/:id/members`
 Add members to a group conversation.
+
+### GET `/conversations/:id/members`
+List members in a conversation.
+
+Response:
+```json
+{ "members": [ { "id": "...", "username": "..." } ] }
+```
+
+### POST `/conversations/:id/members/remove`
+Remove members from a group conversation.
+
+Body:
+```json
+{ "usernames": ["alice", "bob"] }
+```
+
+Response:
+```json
+{ "removed": 2 }
+```
+
+### POST `/conversations/:id/members/role`
+Update a member's role in a group conversation.
+
+Body:
+```json
+{ "userId": "...", "role": "admin" }
+```
+
+Response:
+```json
+{ "ok": true }
+```
 
 Body:
 ```json
