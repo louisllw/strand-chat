@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,17 @@ import { logger } from '../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const migrationsDir = path.join(__dirname, 'migrations');
+const sourceMigrationsDir = path.resolve(__dirname, '../../db/migrations');
+
+const resolveMigrationsDir = async () => {
+  try {
+    await access(migrationsDir);
+    return migrationsDir;
+  } catch {
+    await access(sourceMigrationsDir);
+    return sourceMigrationsDir;
+  }
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const MIGRATION_LOCK_ID = 7267321;
@@ -72,7 +83,8 @@ const runMigrations = async () => {
     `);
     await client.query('create unique index if not exists schema_migrations_version_idx on schema_migrations (version)');
 
-    const files = (await readdir(migrationsDir))
+    const resolvedDir = await resolveMigrationsDir();
+    const files = (await readdir(resolvedDir))
       .filter((file) => file.endsWith('.sql'))
       .sort()
       .map((file) => ({ file, version: getMigrationVersion(file) }))
@@ -89,7 +101,7 @@ const runMigrations = async () => {
     });
 
     for (const { file, version } of files) {
-      const sql = await readFile(path.join(migrationsDir, file), 'utf8');
+      const sql = await readFile(path.join(resolvedDir, file), 'utf8');
       if (!sql.trim()) continue;
       const checksum = hashSql(sql);
       const existingByName = appliedByName.get(file);

@@ -6,10 +6,10 @@ import { logger } from '../utils/logger.js';
 const COOKIE_NAME = getAuthCookieName();
 
 export const getUserFromRequest = async (req: Request) => {
-  const token = req.cookies[COOKIE_NAME];
+  const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
     if (process.env.NODE_ENV !== 'production') {
-      const cookieHeader = req.headers.cookie;
+      const cookieHeader = req.headers?.cookie;
       const cookieNames = cookieHeader
         ? cookieHeader.split(';').map((part) => part.split('=')[0]?.trim()).filter(Boolean)
         : [];
@@ -42,7 +42,7 @@ export const getUserFromRequest = async (req: Request) => {
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   const user = await getUserFromRequest(req);
   if (!user) {
-    if (req.cookies?.[COOKIE_NAME]) {
+    if (req.cookies?.[COOKIE_NAME] && typeof res.clearCookie === 'function') {
       const { maxAge: _maxAge, ...cookieOptions } = authCookieOptions();
       res.clearCookie(COOKIE_NAME, cookieOptions);
     }

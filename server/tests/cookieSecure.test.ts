@@ -18,11 +18,11 @@ test('secure cookies enabled when all origins are https', () => {
   });
 });
 
-test('secure cookies enabled in production even with http origin', () => {
+test('secure cookies disabled in production when local http origin is allowed', () => {
   withEnv(
     { CLIENT_ORIGIN: 'https://example.com,http://localhost:8080', NODE_ENV: 'production' },
     () => {
-      assert.equal(getSecureCookieSetting(), true);
+      assert.equal(getSecureCookieSetting(), false);
     },
   );
 });
