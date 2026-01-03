@@ -168,7 +168,7 @@ it("login, register, updateUser, and logout update auth state", async () => {
     expect(screen.getByTestId("status")).toHaveTextContent("user@example.com")
   );
   expect(mockSetTheme).toHaveBeenCalledWith("dark");
-  expect(mockSocketConnect).toHaveBeenCalled();
+  await waitFor(() => expect(mockSocketConnect).toHaveBeenCalled());
 
   fireEvent.click(screen.getByText("register"));
   await waitFor(() =>
