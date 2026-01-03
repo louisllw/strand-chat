@@ -5,7 +5,7 @@ import { UserProfile } from '@/types';
 import { useAuth } from '@/contexts/useAuth';
 import { UserAvatar } from '@/components/chat/UserAvatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Link2, User as UserIcon } from 'lucide-react';
 
 const UserProfilePage = () => {
@@ -227,6 +227,12 @@ const UserProfilePage = () => {
 
       <Dialog open={isAvatarOpen} onOpenChange={setIsAvatarOpen}>
         <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Profile image</DialogTitle>
+            <DialogDescription className="sr-only">
+              Enlarged view of the selected profile avatar.
+            </DialogDescription>
+          </DialogHeader>
           {profile?.avatar ? (
             <img src={profile.avatar} alt={`${profile.username} avatar`} className="w-full rounded-lg" loading="lazy" decoding="async" />
           ) : (

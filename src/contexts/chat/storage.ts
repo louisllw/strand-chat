@@ -16,7 +16,8 @@ const readLru = () => {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((entry) => typeof entry === 'string');
   } catch {
-    console.warn('[ChatStorage] Failed to read LRU cache');
+    // Ignore malformed LRU cache entries.
+    void 0;
     return [];
   }
 };
@@ -25,7 +26,8 @@ const writeLru = (entries: string[]) => {
   try {
     window.localStorage.setItem(STORAGE_LRU_KEY, JSON.stringify(entries));
   } catch {
-    console.warn('[ChatStorage] Failed to persist LRU cache');
+    // Ignore storage write failures (private mode / quota).
+    void 0;
   }
 };
 
@@ -45,7 +47,8 @@ const evictKeys = (predicate: (key: string) => boolean) => {
       window.localStorage.removeItem(key);
       changed = true;
     } catch {
-      console.warn('[ChatStorage] Failed to evict cached item');
+      // Ignore failed removals (storage unavailable).
+      void 0;
     }
   });
   if (changed) {
@@ -54,7 +57,8 @@ const evictKeys = (predicate: (key: string) => boolean) => {
       try {
         return window.localStorage.getItem(key) !== null;
       } catch {
-        console.warn('[ChatStorage] Failed to verify cached item eviction');
+        // Treat unreadable items as evicted.
+        void 0;
         return false;
       }
     });
@@ -68,7 +72,8 @@ const trySetWithEviction = (key: string, value: string) => {
     touchKey(key);
     return;
   } catch {
-    console.warn('[ChatStorage] Storage full, evicting message cache');
+    // Ignore write failure and attempt eviction.
+    void 0;
   }
 
   evictKeys(isMessageKey);
@@ -77,7 +82,8 @@ const trySetWithEviction = (key: string, value: string) => {
     touchKey(key);
     return;
   } catch {
-    console.warn('[ChatStorage] Storage still full, evicting conversation cache');
+    // Ignore write failure and attempt final eviction.
+    void 0;
   }
 
   evictKeys((entry) => entry === STORAGE_CONVERSATIONS_KEY);
@@ -85,7 +91,8 @@ const trySetWithEviction = (key: string, value: string) => {
     window.localStorage.setItem(key, value);
     touchKey(key);
   } catch {
-    console.warn('[ChatStorage] Failed to persist cache entry');
+    // Ignore storage failures after eviction attempts.
+    void 0;
   }
 };
 
@@ -98,7 +105,8 @@ const safeStorage = {
       }
       return value;
     } catch {
-      console.warn('[ChatStorage] Failed to read cache entry');
+      // Ignore read failures (storage unavailable).
+      void 0;
       return null;
     }
   },
@@ -113,7 +121,8 @@ const safeStorage = {
         writeLru(lru);
       }
     } catch {
-      console.warn('[ChatStorage] Failed to remove cache entry');
+      // Ignore removal failures (storage unavailable).
+      void 0;
     }
   },
 };

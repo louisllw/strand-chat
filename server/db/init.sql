@@ -50,6 +50,7 @@ create table if not exists conversation_members (
   joined_at timestamptz not null default now(),
   cleared_at timestamptz,
   hidden_at timestamptz,
+  left_at timestamptz,
   unread_count integer not null default 0,
   primary key (conversation_id, user_id)
 );

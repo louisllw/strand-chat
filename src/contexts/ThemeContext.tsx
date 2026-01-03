@@ -23,7 +23,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       method: 'PATCH',
       body: JSON.stringify({ theme }),
     }).catch((error) => {
-      console.warn('[Theme] Failed to persist theme', error);
+      void error;
     });
   }, [theme]);
 

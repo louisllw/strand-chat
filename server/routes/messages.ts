@@ -7,19 +7,19 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
 
+export const toggleReactionSchema = z.object({
+  body: z.object({
+    emoji: z.string().min(1),
+  }),
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  query: z.object({}),
+});
+
 const createMessagesRouter = (socketManager: SocketManager) => {
   const router = Router();
   const controller = createMessageController(socketManager);
-
-  const toggleReactionSchema = z.object({
-    body: z.object({
-      emoji: z.string().min(1),
-    }),
-    params: z.object({
-      id: z.string().min(1),
-    }),
-    query: z.object({}),
-  });
 
   router.post('/:id/reactions', requireAuth, messageRateLimiter, validate(toggleReactionSchema), asyncHandler(controller.toggleReaction));
 

@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/useAuth';
 import { useSocket } from '@/contexts/useSocket';
 import { ChatConversationsContext } from '@/contexts/chat-conversations-context';
+import { toast } from '@/hooks/use-toast';
 import {
   STORAGE_CONVERSATIONS_KEY,
   STORAGE_LAST_ACTIVE_KEY,
@@ -17,6 +18,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   const conversationsRef = useRef<Conversation[]>([]);
   const joinedConversationsRef = useRef<Set<string>>(new Set());
   const persistTimeoutRef = useRef<number | null>(null);
+  const didInitialLoadRef = useRef(false);
   const currentUsername = useMemo(() => (user?.username || '').toLowerCase(), [user?.username]);
 
   const normalizeReactions = useCallback((reactions: MessageReaction[] | undefined) => (
@@ -38,6 +40,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
     ...conversation,
     createdAt: new Date(conversation.createdAt),
     updatedAt: new Date(conversation.updatedAt),
+    leftAt: conversation.leftAt ? new Date(conversation.leftAt) : null,
     lastMessage: conversation.lastMessage
       ? normalizeMessage(conversation.lastMessage)
       : undefined,
@@ -71,6 +74,8 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(initialActiveConversation);
   const activeConversationRef = useRef<Conversation | null>(initialActiveConversation);
+  const markReadInFlightRef = useRef<Set<string>>(new Set());
+  const lastMarkReadAtRef = useRef<Record<string, number>>({});
 
   const schedulePersistConversations = useCallback((next: Conversation[]) => {
     if (persistTimeoutRef.current) {
@@ -82,6 +87,10 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   }, []);
 
   const refreshConversations = useCallback(async () => {
+    if (!user) {
+      setConversations([]);
+      return [];
+    }
     try {
       const data = await apiFetch<{ conversations: Conversation[] }>('/api/conversations');
       const normalized = data.conversations.map(normalizeConversation);
@@ -94,17 +103,32 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       }
       return normalized;
     } catch (error) {
-      console.error('[ChatConversations] Failed to refresh conversations', error);
+      void error;
       setConversations([]);
       return [];
     }
-  }, [normalizeConversation, schedulePersistConversations]);
+  }, [normalizeConversation, schedulePersistConversations, user]);
 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
 
   const markAsRead = useCallback((conversationId: string) => {
+    const active = activeConversationRef.current;
+    const current = conversationsRef.current.find(conv => conv.id === conversationId);
+    if (!current || current.unreadCount === 0 || current.leftAt) {
+      return;
+    }
+    const now = Date.now();
+    const lastAt = lastMarkReadAtRef.current[conversationId] || 0;
+    if (now - lastAt < 5000) {
+      return;
+    }
+    if (markReadInFlightRef.current.has(conversationId)) {
+      return;
+    }
+    lastMarkReadAtRef.current[conversationId] = now;
+    markReadInFlightRef.current.add(conversationId);
     setConversations(prev => {
       const next = prev.map(conv =>
         conv.id === conversationId
@@ -119,9 +143,17 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
         ? { ...prev, unreadCount: 0 }
         : prev
     ));
-    apiFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch((error) => {
-      console.error('[ChatConversations] Failed to mark conversation as read', error);
-    });
+    if (active?.id !== conversationId && current?.unreadCount === 0) {
+      markReadInFlightRef.current.delete(conversationId);
+      return;
+    }
+    apiFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' })
+      .catch((error) => {
+        void error;
+      })
+      .finally(() => {
+        markReadInFlightRef.current.delete(conversationId);
+      });
   }, [schedulePersistConversations]);
 
   const handleSetActiveConversation = useCallback((conversation: Conversation | null) => {
@@ -176,7 +208,7 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       return created;
     }
     return null;
-  }, [refreshConversations]);
+  }, [refreshConversations, schedulePersistConversations]);
 
   const createGroupConversation = useCallback(async (name: string, usernames: string[]) => {
     const data = await apiFetch<{ conversationId: string }>('/api/conversations/group', {
@@ -201,14 +233,26 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
     await refreshConversations();
   }, [refreshConversations]);
 
-  const leaveGroup = useCallback(async (conversationId: string) => {
-    await apiFetch(`/api/conversations/${conversationId}/leave`, { method: 'POST' });
-    setConversations(prev => prev.filter(conversation => conversation.id !== conversationId));
-    setActiveConversation(prev => (prev?.id === conversationId ? null : prev));
-    if (safeStorage.get(STORAGE_LAST_ACTIVE_KEY) === conversationId) {
-      safeStorage.remove(STORAGE_LAST_ACTIVE_KEY);
-    }
-    safeStorage.remove(`${STORAGE_MESSAGES_PREFIX}${conversationId}`);
+  const leaveGroup = useCallback(async (conversationId: string, delegateUserId?: string) => {
+    await apiFetch(`/api/conversations/${conversationId}/leave`, {
+      method: 'POST',
+      body: delegateUserId ? JSON.stringify({ delegateUserId }) : undefined,
+    });
+    const leftAt = new Date();
+    setConversations(prev => {
+      const next = prev.map(conversation => (
+        conversation.id === conversationId
+          ? { ...conversation, unreadCount: 0, leftAt }
+          : conversation
+      ));
+      schedulePersistConversations(next);
+      return next;
+    });
+    setActiveConversation(prev => (
+      prev?.id === conversationId
+        ? { ...prev, unreadCount: 0, leftAt }
+        : prev
+    ));
     await refreshConversations();
   }, [refreshConversations]);
 
@@ -236,7 +280,14 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   }, []);
 
   useEffect(() => {
-    refreshConversations();
+    if (didInitialLoadRef.current) return;
+    didInitialLoadRef.current = true;
+    const timeoutId = window.setTimeout(() => {
+      refreshConversations();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [refreshConversations]);
 
   useEffect(() => {
@@ -264,11 +315,12 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   useEffect(() => {
     if (!socket || !socket.connected) return;
     conversations.forEach((conversation) => {
+      if (conversation.leftAt) return;
       if (joinedConversationsRef.current.has(conversation.id)) return;
       emit('conversation:join', conversation.id);
       joinedConversationsRef.current.add(conversation.id);
     });
-    if (activeConversation && !joinedConversationsRef.current.has(activeConversation.id)) {
+    if (activeConversation && !activeConversation.leftAt && !joinedConversationsRef.current.has(activeConversation.id)) {
       emit('conversation:join', activeConversation.id);
       joinedConversationsRef.current.add(activeConversation.id);
     }
@@ -279,9 +331,9 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
     const handleConnect = () => {
       joinedConversationsRef.current.clear();
       const conversationIds = new Set(
-        conversationsRef.current.map(conversation => conversation.id)
+        conversationsRef.current.filter(conversation => !conversation.leftAt).map(conversation => conversation.id)
       );
-      if (activeConversation?.id) {
+      if (activeConversation?.id && !activeConversation.leftAt) {
         conversationIds.add(activeConversation.id);
       }
       conversationIds.forEach((conversationId) => {
@@ -347,13 +399,30 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
       refreshConversations();
     };
 
+    const handleConversationRemoved = (payload: { conversationId: string; name?: string | null }) => {
+      const conversationName = payload.name || 'the group chat';
+      setConversations(prev => prev.filter(conversation => conversation.id !== payload.conversationId));
+      setActiveConversation(prev => (prev?.id === payload.conversationId ? null : prev));
+      if (safeStorage.get(STORAGE_LAST_ACTIVE_KEY) === payload.conversationId) {
+        safeStorage.remove(STORAGE_LAST_ACTIVE_KEY);
+      }
+      safeStorage.remove(`${STORAGE_MESSAGES_PREFIX}${payload.conversationId}`);
+      toast({
+        title: 'Removed from chat',
+        description: `You were removed from ${conversationName}.`,
+        variant: 'destructive',
+      });
+    };
+
     on('presence:update', handlePresenceUpdate);
     on('conversation:created', handleConversationCreated);
     on('conversation:updated', handleConversationUpdated);
+    on('conversation:removed', handleConversationRemoved);
     return () => {
       off('presence:update', handlePresenceUpdate);
       off('conversation:created', handleConversationCreated);
       off('conversation:updated', handleConversationUpdated);
+      off('conversation:removed', handleConversationRemoved);
     };
   }, [on, off, emit, refreshConversations]);
 

@@ -18,6 +18,7 @@ const baseConversationsSelect = `
     pc.participant_count as participant_count,
     lm.last_message as last_message,
     cm.unread_count as unread_count,
+    cm.left_at as left_at,
     coalesce(lm.last_message_created_at, c.updated_at) as sort_ts
   from conversations c
   join conversation_members cm on cm.conversation_id = c.id
@@ -43,6 +44,7 @@ const baseConversationsSelect = `
     from conversation_members cm3
     where cm3.conversation_id = c.id
       and cm3.hidden_at is null
+      and cm3.left_at is null
   ) pc on true
   left join lateral (
     select json_build_object(
@@ -59,6 +61,8 @@ const baseConversationsSelect = `
     from messages m
     where m.conversation_id = c.id
       and (cm.cleared_at is null or m.created_at > cm.cleared_at)
+      and (cm.joined_at is null or m.created_at >= cm.joined_at)
+      and (cm.left_at is null or m.created_at <= cm.left_at)
     order by m.created_at desc
     limit 1
   ) lm on true`;
@@ -110,7 +114,7 @@ export const getConversationMembership = async ({
   const result = await query(
     `select 1 as ok
      from conversation_members
-     where conversation_id = $1 and user_id = $2${requireVisible ? ' and hidden_at is null' : ''}`,
+     where conversation_id = $1 and user_id = $2${requireVisible ? ' and hidden_at is null and left_at is null' : ''}`,
     [conversationId, userId]
   );
   return (result.rowCount ?? 0) > 0;
@@ -124,7 +128,7 @@ export const getConversationMembershipMeta = async ({
   userId: string;
 }) => {
   const result = await query(
-    `select cleared_at
+    `select cleared_at, joined_at, left_at
      from conversation_members
      where conversation_id = $1 and user_id = $2 and hidden_at is null`,
     [conversationId, userId]
@@ -143,7 +147,7 @@ export const getConversationTypeForMember = async ({
     `select c.type
      from conversations c
      join conversation_members cm on cm.conversation_id = c.id
-     where c.id = $1 and cm.user_id = $2 and cm.hidden_at is null`,
+     where c.id = $1 and cm.user_id = $2 and cm.hidden_at is null and cm.left_at is null`,
     [conversationId, userId]
   );
   return result.rows[0]?.type || null;
@@ -159,7 +163,7 @@ export const getConversationMemberRole = async ({
   const result = await query(
     `select role
      from conversation_members
-     where conversation_id = $1 and user_id = $2 and hidden_at is null`,
+     where conversation_id = $1 and user_id = $2 and hidden_at is null and left_at is null`,
     [conversationId, userId]
   );
   return result.rows[0]?.role || null;
@@ -173,7 +177,7 @@ export const hasConversationAdmin = async ({
   const result = await query(
     `select 1
      from conversation_members
-     where conversation_id = $1 and role = 'admin'
+     where conversation_id = $1 and role = 'admin' and left_at is null
      limit 1`,
     [conversationId]
   );
@@ -235,6 +239,19 @@ export const hideConversationForUser = async ({
   );
 };
 
+export const markConversationLeft = async ({
+  conversationId,
+  userId,
+}: {
+  conversationId: string;
+  userId: string;
+}) => {
+  await query(
+    'update conversation_members set left_at = now(), unread_count = 0 where conversation_id = $1 and user_id = $2',
+    [conversationId, userId]
+  );
+};
+
 export const removeConversationMember = async ({
   conversationId,
   userId,
@@ -258,10 +275,46 @@ export const deleteConversation = async ({
 
 export const listConversationMembers = async (conversationId: string) => {
   const result = await query(
-    'select user_id from conversation_members where conversation_id = $1',
+    `select user_id
+     from conversation_members
+     where conversation_id = $1 and hidden_at is null and left_at is null`,
     [conversationId]
   );
   return result.rows.map((row) => row.user_id);
+};
+
+export const listConversationMembersDetailed = async (conversationId: string) => {
+  const result = await query(
+    `select
+       u.id,
+       u.username,
+       u.email,
+       u.avatar_url as avatar,
+       u.status,
+       u.last_seen as last_seen,
+       cm.role
+     from conversation_members cm
+     join users u on u.id = cm.user_id
+     where cm.conversation_id = $1 and cm.hidden_at is null and cm.left_at is null
+     order by (cm.role = 'admin') desc, u.username`,
+    [conversationId]
+  );
+  return result.rows;
+};
+
+export const countConversationAdmins = async (conversationId: string) => {
+  const result = await query(
+    `select count(*)::int as count
+     from conversation_members
+     where conversation_id = $1 and role = 'admin' and left_at is null`,
+    [conversationId]
+  );
+  return result.rows[0]?.count ?? 0;
+};
+
+export const getConversationName = async (conversationId: string) => {
+  const result = await query('select name from conversations where id = $1', [conversationId]);
+  return result.rows[0]?.name ?? null;
 };
 
 export const findDirectConversation = async ({
@@ -419,7 +472,11 @@ export const listExistingConversationMembers = async ({
   userIds: string[];
 }) => {
   const result = await query(
-    'select user_id from conversation_members where conversation_id = $1 and user_id = any($2::uuid[])',
+    `select user_id
+     from conversation_members
+     where conversation_id = $1
+       and user_id = any($2::uuid[])
+       and left_at is null`,
     [conversationId, userIds]
   );
   return result.rows.map((row) => row.user_id);
@@ -440,6 +497,17 @@ export const addConversationMembers = async (
     `insert into conversation_members (conversation_id, user_id)
      select $1, unnest($2::uuid[])
      on conflict do nothing`,
+    [conversationId, userIds]
+  );
+  await runQuery(
+    client,
+    `update conversation_members
+     set left_at = null,
+         hidden_at = null,
+         joined_at = now(),
+         cleared_at = now(),
+         unread_count = 0
+     where conversation_id = $1 and user_id = any($2::uuid[])`,
     [conversationId, userIds]
   );
 };

@@ -26,7 +26,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     const handleConnectError = (error: Error) => {
       if (import.meta.env.DEV) {
-        console.error('[socket] connect_error', error.message);
+        void error;
       }
     };
     const handleSocketError = (payload: { event?: string; message?: string }) => {

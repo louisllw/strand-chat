@@ -27,7 +27,7 @@ export const createSystemMessage = async (conversationId: string, senderId: stri
   await query(
     `update conversation_members
      set unread_count = unread_count + 1
-     where conversation_id = $1 and user_id <> $2`,
+     where conversation_id = $1 and user_id <> $2 and left_at is null`,
     [conversationId, senderId]
   );
   await query('update conversations set updated_at = now() where id = $1', [conversationId]);
@@ -66,7 +66,7 @@ export const createMessageWithMembership = async ({
        membership as (
          select 1 as ok
          from conversation_members
-         where conversation_id = $1 and user_id = $2 and hidden_at is null
+         where conversation_id = $1 and user_id = $2 and hidden_at is null and left_at is null
        ),
        reply_check as (
          select 1 as ok
@@ -83,7 +83,7 @@ export const createMessageWithMembership = async ({
        unread as (
          update conversation_members
          set unread_count = unread_count + 1
-         where conversation_id = $1 and user_id <> $2
+         where conversation_id = $1 and user_id <> $2 and left_at is null
            and exists (select 1 from inserted)
          returning 1
        ),
@@ -95,7 +95,7 @@ export const createMessageWithMembership = async ({
        unhidden as (
          update conversation_members
          set hidden_at = null
-         where conversation_id = $1 and hidden_at is not null
+         where conversation_id = $1 and hidden_at is not null and left_at is null
            and exists (select 1 from inserted)
          returning user_id
        ),
@@ -184,6 +184,8 @@ export const getConversationMessages = async ({
   userId,
   limit,
   clearedAt,
+  joinedAt,
+  leftAt,
   beforeCreatedAt,
   beforeId,
 }: {
@@ -191,6 +193,8 @@ export const getConversationMessages = async ({
   userId: string;
   limit: number;
   clearedAt?: string | null;
+  joinedAt?: string | null;
+  leftAt?: string | null;
   beforeCreatedAt?: string | null;
   beforeId?: string | null;
 }) => {
@@ -213,10 +217,12 @@ export const getConversationMessages = async ({
        from messages
        where conversation_id = $1
          and ($4::timestamptz is null or created_at > $4)
+         and ($5::timestamptz is null or created_at >= $5)
+         and ($6::timestamptz is null or created_at <= $6)
          and (
-           $5::timestamptz is null
-           or created_at < $5
-           or (created_at = $5 and id < $6)
+           $7::timestamptz is null
+           or created_at < $7
+           or (created_at = $7 and id < $8)
          )
        order by created_at desc, id desc
        limit $3
@@ -239,7 +245,7 @@ export const getConversationMessages = async ({
        ) reactions_summary
      ) rx on true
      order by m.created_at asc, m.id asc`,
-    [conversationId, userId, limit, clearedAt, beforeCreatedAt, beforeId]
+    [conversationId, userId, limit, clearedAt, joinedAt, leftAt, beforeCreatedAt, beforeId]
   );
   return result.rows;
 };
@@ -259,7 +265,7 @@ export const toggleReaction = async ({
          select m.conversation_id
          from messages m
          join conversation_members cm on cm.conversation_id = m.conversation_id
-         where m.id = $1 and cm.user_id = $2 and cm.hidden_at is null
+         where m.id = $1 and cm.user_id = $2 and cm.hidden_at is null and cm.left_at is null
        ),
        deleted as (
          delete from message_reactions

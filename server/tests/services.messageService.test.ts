@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapInsertedMessageRow, mapMessageRow } from '../services/messageService.js';
+import { mapInsertedMessageRow, mapMessageRow, createMessage } from '../services/messageService.js';
+import { createUser, createDirectConversationFor, shouldRunIntegration } from './helpers/db.js';
 
 test('mapInsertedMessageRow sanitizes content', () => {
   const row = {
@@ -35,4 +36,22 @@ test('mapMessageRow sanitizes reply content', () => {
   };
   const message = mapMessageRow(row);
   assert.equal(message.replyTo?.content, 'ok');
+});
+
+test('createMessage returns message for members', { skip: !shouldRunIntegration }, async () => {
+  const sender = await createUser();
+  const receiver = await createUser();
+  const conversationId = await createDirectConversationFor(sender.id, receiver.id);
+
+  const result = await createMessage({
+    conversationId,
+    userId: sender.id,
+    content: 'service message',
+    type: 'text',
+    attachmentUrl: null,
+    replyToId: null,
+  });
+  assert.equal(result.isMember, true);
+  assert.ok(result.message?.id);
+  assert.equal(result.message?.content, 'service message');
 });

@@ -4,7 +4,7 @@ update conversations c
 set direct_key = sub.direct_key
 from (
   select conversation_id,
-         concat(least(user_id), ':', greatest(user_id)) as direct_key
+         concat(min(user_id::text), ':', max(user_id::text)) as direct_key
   from conversation_members
   group by conversation_id
   having count(*) = 2

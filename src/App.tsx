@@ -9,7 +9,6 @@ import { SocketProvider } from "@/contexts/SocketContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/useAuth";
 
-import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
@@ -59,7 +58,14 @@ const GuestRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/" element={<Index />} />
+      <Route
+        path="/"
+        element={
+          <GuestRoute>
+            <Navigate to="/login" replace />
+          </GuestRoute>
+        }
+      />
       <Route
         path="/login"
         element={

@@ -1,7 +1,8 @@
 import type { Request } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
-const getRateLimitKey = (req: Request) => req.user?.userId ?? req.ip ?? 'unknown';
+const getRateLimitKey = (req: Request) =>
+  req.user?.userId ?? ipKeyGenerator(req.ip || 'unknown');
 
 const defaultOptions = {
   standardHeaders: true,
@@ -15,6 +16,12 @@ export const authRateLimiter = rateLimit({
   max: 10,
   ...defaultOptions,
   message: { error: 'Too many attempts, please try again later.' },
+});
+
+export const csrfRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  ...defaultOptions,
 });
 
 export const apiWriteRateLimiter = rateLimit({

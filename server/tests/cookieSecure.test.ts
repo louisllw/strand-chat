@@ -18,10 +18,22 @@ test('secure cookies enabled when all origins are https', () => {
   });
 });
 
-test('secure cookies disabled when any origin is http', () => {
-  withEnv({ CLIENT_ORIGIN: 'https://example.com,http://localhost:8080' }, () => {
-    assert.equal(getSecureCookieSetting(), false);
-  });
+test('secure cookies enabled in production even with http origin', () => {
+  withEnv(
+    { CLIENT_ORIGIN: 'https://example.com,http://localhost:8080', NODE_ENV: 'production' },
+    () => {
+      assert.equal(getSecureCookieSetting(), true);
+    },
+  );
+});
+
+test('secure cookies disabled when any origin is http in non-production', () => {
+  withEnv(
+    { CLIENT_ORIGIN: 'https://example.com,http://localhost:8080', NODE_ENV: 'development' },
+    () => {
+      assert.equal(getSecureCookieSetting(), false);
+    },
+  );
 });
 
 test('secure cookies follow NODE_ENV when origin is missing', () => {

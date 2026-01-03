@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg, { type Client } from 'pg';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,7 +108,7 @@ const runMigrations = async () => {
         }
         continue;
       }
-      console.log(`[db] applying migration ${file}`);
+      logger.info('[db] applying migration', { file });
       try {
         await client.query('begin');
         await client.query(sql);
@@ -132,6 +133,6 @@ const runMigrations = async () => {
 };
 
 runMigrations().catch((error) => {
-  console.error('[db] migration failed', error);
+  logger.error('[db] migration failed', { error });
   process.exit(1);
 });

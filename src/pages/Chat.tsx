@@ -22,8 +22,9 @@ const Chat = () => {
     // Prevent any scroll events on window/document
     const preventScroll = (e: Event) => {
       // Allow scrolling only within approved chat scroll containers
-      const target = e.target as HTMLElement;
-      const isAllowedScroll = target.closest('[data-message-list], [data-chat-scroll]');
+      const target = e.target;
+      const element = target instanceof Element ? target : null;
+      const isAllowedScroll = element?.closest('[data-message-list], [data-chat-scroll]');
 
       if (!isAllowedScroll && e.cancelable) {
         e.preventDefault();
@@ -32,8 +33,9 @@ const Chat = () => {
 
     // Prevent touchmove on document unless it's in message list
     const preventTouchMove = (e: TouchEvent) => {
-      const target = e.target as HTMLElement;
-      const isAllowedScroll = target.closest('[data-message-list], [data-chat-scroll]');
+      const target = e.target;
+      const element = target instanceof Element ? target : null;
+      const isAllowedScroll = element?.closest('[data-message-list], [data-chat-scroll]');
 
       if (!isAllowedScroll && e.cancelable) {
         e.preventDefault();

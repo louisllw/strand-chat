@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 const router = Router();
 
-const usernameAvailabilitySchema = z.object({
+export const usernameAvailabilitySchema = z.object({
   body: z.object({}).optional(),
   params: z.object({}),
   query: z.object({
@@ -22,7 +22,7 @@ const usernameAvailabilitySchema = z.object({
   }),
 });
 
-const updateMeSchema = z.object({
+export const updateMeSchema = z.object({
   body: z.object({
     username: z.string().optional(),
     email: z.string().email().optional(),
@@ -39,13 +39,13 @@ const updateMeSchema = z.object({
     socialFacebook: z.string().optional().nullable(),
     socialGithub: z.string().optional().nullable(),
     status: z.enum(['online', 'offline', 'away']).optional(),
-    theme: z.string().optional(),
+    theme: z.enum(['light', 'dark']).optional(),
   }),
   params: z.object({}),
   query: z.object({}),
 });
 
-const emojiRecentsSchema = z.object({
+export const emojiRecentsSchema = z.object({
   body: z.object({}).optional(),
   params: z.object({}),
   query: z.object({
@@ -53,7 +53,7 @@ const emojiRecentsSchema = z.object({
   }),
 });
 
-const addEmojiSchema = z.object({
+export const addEmojiSchema = z.object({
   body: z.object({
     emoji: z.string().min(1),
   }),
@@ -61,10 +61,10 @@ const addEmojiSchema = z.object({
   query: z.object({}),
 });
 
-const userIdSchema = z.object({
+export const userIdSchema = z.object({
   body: z.object({}).optional(),
   params: z.object({
-    id: z.string().min(1),
+    id: z.string().uuid(),
   }),
   query: z.object({}),
 });
