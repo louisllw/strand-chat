@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 import type { ConversationMember } from '@/types';
 import { useAuth } from '@/contexts/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { getDirectParticipant } from './utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,25 +56,28 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
 
   const conversation = activeConversation;
+  const directParticipant = conversation?.type === 'direct'
+    ? getDirectParticipant(conversation.participants, user?.id)
+    : null;
 
   const displayName = conversation?.type === 'group'
     ? conversation.name
-    : conversation?.participants[0]?.username
-    ? `@${conversation.participants[0].username}`
+    : directParticipant?.username
+    ? `@${directParticipant.username}`
     : undefined;
 
   const displayStatus = conversation?.type === 'direct'
-    ? conversation.participants[0]?.status
+    ? directParticipant?.status
     : undefined;
 
   const isTyping = conversation?.type === 'direct'
     ? typingIndicators.some(
         indicator => indicator.conversationId === conversation.id
-          && indicator.userId === conversation.participants[0]?.id
+          && indicator.userId === directParticipant?.id
       )
     : false;
 
-  const lastSeen = conversation?.participants[0]?.lastSeen
+  const lastSeen = directParticipant?.lastSeen
     || conversation?.updatedAt;
   const statusText = isTyping
     ? 'Typing...'
@@ -89,7 +93,7 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
     ? (conversation.participantCount ?? conversation.participants.length)
     : 0;
   const isGroup = conversation?.type === 'group';
-  const profileUser = !isGroup ? conversation?.participants[0] ?? null : null;
+  const profileUser = !isGroup ? directParticipant : null;
   const isLeftConversation = Boolean(conversation?.leftAt);
   const adminCount = members.filter(member => member.role === 'admin').length;
   const currentMember = members.find(member => member.id === user?.id);
@@ -214,8 +218,8 @@ export const ChatHeader = ({ onMobileMenuClick, className }: ChatHeaderProps) =>
             </div>
           ) : (
             <UserAvatar
-              username={activeConversation.participants[0]?.username || 'Unknown'}
-              avatar={activeConversation.participants[0]?.avatar}
+              username={directParticipant?.username || 'Unknown'}
+              avatar={directParticipant?.avatar}
               status={displayStatus}
             />
           )}

@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/useAuth';
 import { useTheme } from '@/contexts/useTheme';
 import { ConversationItem } from './ConversationItem';
 import { UserAvatar } from './UserAvatar';
+import { getDirectParticipant } from './utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -50,7 +51,9 @@ export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) =
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   const filteredConversations = conversations.filter(conv => {
-    const name = conv.type === 'group' ? conv.name : conv.participants[0]?.username;
+    const name = conv.type === 'group'
+      ? conv.name
+      : getDirectParticipant(conv.participants, user?.id)?.username;
     return name?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -191,6 +194,7 @@ export const ChatSidebar = ({ isMobileOpen, onMobileClose }: ChatSidebarProps) =
                 key={conversation.id}
                 conversation={conversation}
                 isActive={activeConversation?.id === conversation.id}
+                currentUserId={user?.id}
                 onClick={() => handleConversationClick(conversation)}
               />
             ))

@@ -2,11 +2,13 @@ import { Conversation } from '@/types';
 import { UserAvatar } from './UserAvatar';
 import { cn } from '@/lib/utils';
 import { Users } from 'lucide-react';
+import { getDirectParticipant } from './utils';
 
 interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onClick: () => void;
+  currentUserId?: string;
 }
 
 const formatTime = (date: Date) => {
@@ -25,17 +27,25 @@ const formatTime = (date: Date) => {
   }
 };
 
-export const ConversationItem = ({ conversation, isActive, onClick }: ConversationItemProps) => {
+export const ConversationItem = ({
+  conversation,
+  isActive,
+  onClick,
+  currentUserId,
+}: ConversationItemProps) => {
+  const directParticipant = conversation.type === 'direct'
+    ? getDirectParticipant(conversation.participants, currentUserId)
+    : null;
   const displayName = conversation.type === 'group'
     ? conversation.name
-    : conversation.participants[0]?.username
-    ? `@${conversation.participants[0].username}`
+    : directParticipant?.username
+    ? `@${directParticipant.username}`
     : undefined;
 
   const displayStatus = conversation.type === 'direct'
-    ? conversation.participants[0]?.status
+    ? directParticipant?.status
     : undefined;
-  const lastSeen = conversation.participants[0]?.lastSeen || conversation.updatedAt;
+  const lastSeen = directParticipant?.lastSeen || conversation.updatedAt;
 
   return (
     <button
@@ -53,8 +63,8 @@ export const ConversationItem = ({ conversation, isActive, onClick }: Conversati
         </div>
       ) : (
         <UserAvatar
-          username={conversation.participants[0]?.username || 'Unknown'}
-          avatar={conversation.participants[0]?.avatar}
+          username={directParticipant?.username || 'Unknown'}
+          avatar={directParticipant?.avatar}
           status={displayStatus}
           showStatus={true}
         />
