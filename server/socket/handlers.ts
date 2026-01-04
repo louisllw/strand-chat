@@ -20,6 +20,11 @@ import { getMessageDedup, setMessageDedup } from '../services/messageDedup.js';
 import { getRedisClient } from '../services/redis.js';
 import { SOCKET_LIMITS } from '../constants.js';
 import { sendPushToUsers } from '../services/pushService.js';
+import {
+  clearActiveConversationPresence,
+  getActiveUsersForConversation,
+  setActiveConversationPresence,
+} from '../services/presence.js';
 
 const cookieMiddleware = cookieParser();
 const connectionCounts = new Map<string, number>();
@@ -146,6 +151,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     let presenceTimeout: ReturnType<typeof setTimeout> | null = null;
     let pendingPresenceStatus: string | null = null;
     let pendingPresenceLastSeen: string | null = null;
+    let presenceSeq = 0;
 
     const emitPresenceUpdate = (status: string, lastSeen: string | null) => {
       const ids = socket.data.conversationIds
@@ -161,7 +167,28 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       });
     };
 
-    const emitSocketError = (event: string, message: string, error?: unknown) => {
+    const updateActivePresence = async (
+      conversationId: string | null,
+      previousConversationId: string | null
+    ) => {
+      if (previousConversationId && previousConversationId !== conversationId) {
+        await clearActiveConversationPresence({ userId, conversationId: previousConversationId });
+      }
+      if (conversationId) {
+        await setActiveConversationPresence({
+          userId,
+          conversationId,
+          ttlMs: ACTIVE_PRESENCE_TTL_MS,
+        });
+      }
+    };
+
+    const emitSocketError = (
+      event: string,
+      message: string,
+      error?: unknown,
+      code: 'UNAUTHORIZED' | 'FORBIDDEN' | 'RATE_LIMITED' | 'INVALID_PAYLOAD' | 'ERROR' = 'ERROR'
+    ) => {
       const errorId = createErrorId();
       if (error) {
         logger.warn('[socket] emit error', {
@@ -172,7 +199,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           userId,
         });
       }
-      socket.emit('error', { event, message, errorId });
+      socket.emit('error', { event, message, errorId, code });
     };
 
     const schedulePresenceUpdate = (
@@ -180,13 +207,15 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       lastSeen: string | null,
       delayMs = PRESENCE_DEBOUNCE_MS
     ) => {
+      const nextSeq = presenceSeq + 1;
+      presenceSeq = nextSeq;
       pendingPresenceStatus = status;
       pendingPresenceLastSeen = lastSeen;
       if (presenceTimeout) {
         clearTimeout(presenceTimeout);
       }
       presenceTimeout = setTimeout(() => {
-        if (!pendingPresenceStatus) return;
+        if (nextSeq !== presenceSeq || !pendingPresenceStatus) return;
         emitPresenceUpdate(pendingPresenceStatus, pendingPresenceLastSeen);
         pendingPresenceStatus = null;
         pendingPresenceLastSeen = null;
@@ -255,7 +284,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           }
           socket.data.conversationIds.add(conversationId);
         } else {
-          emitSocketError('conversation:join', 'Unable to join conversation');
+          emitSocketError('conversation:join', 'Unable to join conversation', undefined, 'FORBIDDEN');
         }
       } catch (error) {
         const errorId = createErrorId();
@@ -265,14 +294,16 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           userId,
           error,
         });
-        emitSocketError('conversation:join', 'Failed to join conversation', error);
+        emitSocketError('conversation:join', 'Failed to join conversation', error, 'ERROR');
       }
     });
 
     socket.on('conversation:active', (conversationId: string | null) => {
+      const previousConversationId = socket.data.activeConversationId ?? null;
       if (!conversationId) {
         socket.data.activeConversationId = null;
         socket.data.activeConversationAt = undefined;
+        void updateActivePresence(null, previousConversationId);
         return;
       }
       if (!socket.data.conversationIds || !socket.data.conversationIds.has(conversationId)) {
@@ -280,6 +311,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       }
       socket.data.activeConversationId = conversationId;
       socket.data.activeConversationAt = Date.now();
+      void updateActivePresence(conversationId, previousConversationId);
     });
 
     socket.on('message:send', async (
@@ -391,10 +423,15 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
               && socket.data.activeConversationId === conversationId
               && lastActiveAt
               && now - lastActiveAt < ACTIVE_PRESENCE_TTL_MS
-            ) {
-              activeUserIds.add(socket.user.userId);
-            }
+              ) {
+                activeUserIds.add(socket.user.userId);
+              }
+            });
+          const redisActive = await getActiveUsersForConversation({
+            conversationId,
+            userIds: members,
           });
+          redisActive.forEach((memberId) => activeUserIds.add(memberId));
           const recipients = members.filter((memberId) => (
             memberId !== userId && !activeUserIds.has(memberId)
           ));
@@ -421,7 +458,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           userId,
           error,
         });
-        emitSocketError('message:send', 'Failed to send message', error);
+        emitSocketError('message:send', 'Failed to send message', error, 'ERROR');
         if (callback) callback({ error: 'Failed to send message' });
       }
     });
@@ -503,7 +540,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           userId,
           error,
         });
-        emitSocketError('reaction:toggle', 'Failed to toggle reaction', error);
+        emitSocketError('reaction:toggle', 'Failed to toggle reaction', error, 'ERROR');
         if (callback) callback({ error: 'Failed to toggle reaction' });
       }
     });
@@ -521,7 +558,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           status: 'online',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:active', 'Failed to update presence', error);
+        emitSocketError('presence:active', 'Failed to update presence', error, 'ERROR');
       }
     });
 
@@ -538,11 +575,17 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           status: 'away',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:away', 'Failed to update presence', error);
+        emitSocketError('presence:away', 'Failed to update presence', error, 'ERROR');
       }
     });
 
     socket.on('disconnect', async () => {
+      typingState.forEach((_entry, conversationId) => {
+        socket.to(conversationId).emit('typing:stop', {
+          conversationId,
+          userId,
+        });
+      });
       typingState.forEach((entry) => {
         if (entry?.timeoutId) clearTimeout(entry.timeoutId);
       });
@@ -550,6 +593,12 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       if (presenceTimeout) {
         clearTimeout(presenceTimeout);
         presenceTimeout = null;
+      }
+      presenceSeq += 1;
+      pendingPresenceStatus = null;
+      pendingPresenceLastSeen = null;
+      if (socket.data.activeConversationId) {
+        void updateActivePresence(null, socket.data.activeConversationId);
       }
       const remaining = connectionCounts.get(userId) || 0;
       if (remaining > 0) return;
@@ -566,7 +615,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           status: 'offline',
           error: getErrorMessage(error),
         });
-        emitSocketError('presence:offline', 'Failed to update presence', error);
+        emitSocketError('presence:offline', 'Failed to update presence', error, 'ERROR');
       }
     });
   });

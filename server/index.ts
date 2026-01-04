@@ -42,6 +42,11 @@ const io = new SocketIOServer(server, {
 const secureCookies = getSecureCookieSetting();
 logger.info('[auth] secure cookies', { secureCookies });
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change_me_in_production') {
+  logger.error('Invalid or missing JWT_SECRET');
+  process.exit(1);
+}
+
 app.use(
   cors({
     origin: corsOrigin,

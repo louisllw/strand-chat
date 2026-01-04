@@ -46,6 +46,9 @@ export const MessageList = ({ className }: MessageListProps) => {
   const lastViewportHeightRef = useRef<number | null>(null);
   const keyboardInset = useKeyboardInset();
   const conversationId = activeConversation?.id ?? null;
+  const activeTyping = typingIndicators.filter(
+    t => t.conversationId === activeConversation?.id
+  );
 
   const getInputHeight = () => {
     if (typeof window === 'undefined') return 0;
@@ -116,6 +119,18 @@ export const MessageList = ({ className }: MessageListProps) => {
       });
     }
   }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    if (!isAtBottomRef.current) return;
+    if (activeTyping.length === 0) return;
+    isAutoScrollingRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToBottom('auto');
+      requestAnimationFrame(() => {
+        isAutoScrollingRef.current = false;
+      });
+    });
+  }, [activeTyping.length, scrollToBottom]);
 
   useEffect(() => {
     const handleInputFocus = () => {
@@ -258,10 +273,6 @@ export const MessageList = ({ className }: MessageListProps) => {
       });
     }
   };
-
-  const activeTyping = typingIndicators.filter(
-    t => t.conversationId === activeConversation?.id
-  );
 
   return (
     <div

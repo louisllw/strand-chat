@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.8
+
+- Added Redis-backed active presence to improve push suppression accuracy across restarts.
+- Standardized API error responses with codes and validation details.
+- Tightened auth validation (JWT startup guard, stronger registration checks) and DB tuning (pool size, isolation).
+- Improved profile settings UX (single notifications toggle, UK phone validation, remove image URL inputs).
+- Simplified message composer UI and fixed typing/scroll behavior plus dialog overlay stacking.
+- Updated push setup flow with a PWA-only enable prompt and clearer failure handling.
+- Added Redis healthcheck and refreshed deployment docs.
+
 ## v0.0.7
 
 - Added group admin management UI (manage/view members, promote/demote, system events, and removal notices).

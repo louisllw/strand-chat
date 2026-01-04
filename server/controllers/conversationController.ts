@@ -27,6 +27,8 @@ import {
 } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import { sendPushToUsers } from '../services/pushService.js';
+import { getActiveUsersForConversation } from '../services/presence.js';
+import { sendError } from '../utils/errors.js';
 
 const ACTIVE_PRESENCE_TTL_MS = 20000;
 
@@ -46,7 +48,7 @@ export const createConversationController = (socketManager: SocketManager) => ({
       return { sortTs: ts.toISOString(), id };
     })() : null;
     if (cursor && !parsedCursor) {
-      return res.status(400).json({ error: 'Invalid cursor' });
+      return sendError(res, 400, 'INVALID_CURSOR', 'Invalid cursor');
     }
     const { conversations, nextCursor } = await listConversations({
       userId: req.user!.userId,
@@ -77,7 +79,7 @@ export const createConversationController = (socketManager: SocketManager) => ({
     if (beforeId) {
       const cursor = await getMessageCursor({ conversationId, messageId: beforeId });
       if (!cursor) {
-        return res.status(400).json({ error: 'Invalid message cursor' });
+        return sendError(res, 400, 'INVALID_MESSAGE_CURSOR', 'Invalid message cursor');
       }
       beforeCreatedAt = cursor.created_at;
     }
@@ -103,17 +105,17 @@ export const createConversationController = (socketManager: SocketManager) => ({
     const sanitizedContent = sanitizeText(content);
 
     if (!sanitizedContent.trim()) {
-      return res.status(400).json({ error: 'Message content required' });
+      return sendError(res, 400, 'MESSAGE_CONTENT_REQUIRED', 'Message content required');
     }
     if (isMessageTooLong(sanitizedContent)) {
-      return res.status(400).json({ error: 'Message too long' });
+      return sendError(res, 400, 'MESSAGE_TOO_LONG', 'Message too long');
     }
     if (attachmentUrl) {
       if (typeof attachmentUrl !== 'string') {
-        return res.status(400).json({ error: 'Invalid attachment' });
+        return sendError(res, 400, 'ATTACHMENT_INVALID', 'Invalid attachment');
       }
       if (isAttachmentUrlTooLong(attachmentUrl) || isDataUrlTooLarge(attachmentUrl)) {
-        return res.status(400).json({ error: 'Attachment too large' });
+        return sendError(res, 400, 'ATTACHMENT_TOO_LARGE', 'Attachment too large');
       }
     }
 
@@ -133,13 +135,13 @@ export const createConversationController = (socketManager: SocketManager) => ({
       replyToId,
     });
     if (!result.replyOk) {
-      return res.status(400).json({ error: 'Invalid reply target' });
+      return sendError(res, 400, 'REPLY_INVALID', 'Invalid reply target');
     }
     if (!result.isMember) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return sendError(res, 403, 'FORBIDDEN', 'Forbidden');
     }
     if (!result.message) {
-      return res.status(500).json({ error: 'Failed to send message' });
+      return sendError(res, 500, 'MESSAGE_SEND_FAILED', 'Failed to send message');
     }
 
     if (clientMessageId) {
@@ -189,6 +191,11 @@ export const createConversationController = (socketManager: SocketManager) => ({
           activeUserIds.add(socket.user.userId);
         }
       });
+      const redisActive = await getActiveUsersForConversation({
+        conversationId,
+        userIds: members,
+      });
+      redisActive.forEach((memberId) => activeUserIds.add(memberId));
       const recipients = members.filter((memberId) => (
         memberId !== userId && !activeUserIds.has(memberId)
       ));

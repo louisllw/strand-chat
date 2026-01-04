@@ -11,6 +11,7 @@ import { UserAvatar } from '@/components/chat/UserAvatar';
 import { useToast } from '@/hooks/use-toast';
 import { disablePushNotifications, enablePushNotifications, getPushStatus } from '@/lib/push';
 import { apiFetch } from '@/lib/api';
+import { EnablePushPrompt } from '@/components/EnablePushPrompt';
 import { InstallPwaPrompt } from '@/components/InstallPwaPrompt';
 import Cropper, { type Area } from 'react-easy-crop';
 import {
@@ -146,11 +147,7 @@ const Profile = () => {
   const [isCompromisedLoading, setIsCompromisedLoading] = useState(false);
   const dirtyRef = useRef<Partial<Record<ProfileFormField, boolean>>>({});
 
-  const [notifications, setNotifications] = useState({
-    messages: true,
-    sounds: true,
-    desktop: false,
-  });
+  const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
   const [usernameStatus, setUsernameStatus] = useState({
     state: 'idle' as 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'cooldown',
@@ -189,7 +186,7 @@ const Profile = () => {
       const status = await getPushStatus();
       if (!active) return;
       setPushSupported(status.supported);
-      setNotifications(prev => ({ ...prev, desktop: status.supported && status.subscribed }));
+      setPushEnabled(status.supported && status.subscribed);
     };
     void initPush();
     return () => {
@@ -208,17 +205,17 @@ const Profile = () => {
         });
         return;
       }
-      setNotifications(prev => ({ ...prev, desktop: false }));
+      setPushEnabled(false);
       return;
     }
 
     const result = await enablePushNotifications();
     if (result.status === 'subscribed') {
-      setNotifications(prev => ({ ...prev, desktop: true }));
+      setPushEnabled(true);
       return;
     }
 
-    setNotifications(prev => ({ ...prev, desktop: false }));
+    setPushEnabled(false);
 
     if (result.status === 'unsupported') {
       toast({
@@ -277,6 +274,14 @@ const Profile = () => {
   const isSocialYoutubeChanged = formData.socialYoutube.trim() !== (user?.socialYoutube || '');
   const isSocialFacebookChanged = formData.socialFacebook.trim() !== (user?.socialFacebook || '');
   const isSocialGithubChanged = formData.socialGithub.trim() !== (user?.socialGithub || '');
+
+  const normalizeUkPhone = (value: string) => value.replace(/[^\d]/g, '');
+  const isValidUkNationalPhone = (value: string) => {
+    const digits = normalizeUkPhone(value);
+    if (!digits) return false;
+    if (!digits.startsWith('0')) return false;
+    return digits.length === 10 || digits.length === 11;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -460,6 +465,17 @@ const Profile = () => {
         variant: 'destructive',
       });
     }
+    if (dirtyRef.current.phone && isPhoneChanged) {
+      const trimmedPhone = formData.phone.trim();
+      if (trimmedPhone && !isValidUkNationalPhone(trimmedPhone)) {
+        toast({
+          title: 'Invalid phone number',
+          description: 'Enter a valid UK phone number (e.g. 07123 456 789).',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
     setIsLoading(true);
     try {
       const updates: {
@@ -617,15 +633,7 @@ const Profile = () => {
                 <Camera className="h-4 w-4" />
               </button>
             </div>
-            <Input
-              placeholder="Paste banner image URL"
-              value={formData.banner}
-              autoComplete="off"
-              onChange={(e) => {
-                setFormData(prev => ({ ...prev, banner: e.target.value }));
-                markDirty('banner');
-              }}
-            />
+            <p className="text-xs text-muted-foreground">Upload a banner image (JPG or PNG).</p>
           </div>
 
           <div className="flex items-center gap-6">
@@ -660,15 +668,7 @@ const Profile = () => {
                   {user?.status === 'online' ? 'Online' : user?.status === 'away' ? 'Away' : 'Offline'}
                 </p>
               </div>
-              <Input
-                placeholder="Paste avatar image URL"
-                value={formData.avatar}
-                autoComplete="off"
-                onChange={(e) => {
-                  setFormData(prev => ({ ...prev, avatar: e.target.value }));
-                  markDirty('avatar');
-                }}
-              />
+              <p className="text-xs text-muted-foreground">Upload a profile photo (JPG or PNG).</p>
             </div>
           </div>
           <input
@@ -774,8 +774,9 @@ const Profile = () => {
                 setFormData(prev => ({ ...prev, phone: e.target.value }));
                 markDirty('phone');
               }}
-              placeholder="+1 (555) 123-4567"
+              placeholder="07123 456 789"
             />
+            <p className="text-xs text-muted-foreground">UK format only (e.g. 07123 456 789).</p>
           </div>
 
           <div className="space-y-2">
@@ -907,39 +908,18 @@ const Profile = () => {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-foreground">Message Notifications</p>
-              <p className="text-sm text-muted-foreground">Get notified about new messages</p>
+              <p className="font-medium text-foreground">Notifications</p>
+              <p className="text-sm text-muted-foreground">Get alerts for new messages</p>
             </div>
             <Switch
-              checked={notifications.messages}
-              onCheckedChange={(checked) => setNotifications({ ...notifications, messages: checked })}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-foreground">Sound Effects</p>
-              <p className="text-sm text-muted-foreground">Play sounds for notifications</p>
-            </div>
-            <Switch
-              checked={notifications.sounds}
-              onCheckedChange={(checked) => setNotifications({ ...notifications, sounds: checked })}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-foreground">Desktop Notifications</p>
-              <p className="text-sm text-muted-foreground">Show desktop push notifications</p>
-            </div>
-            <Switch
-              checked={notifications.desktop}
+              checked={pushEnabled}
               disabled={!pushSupported}
               onCheckedChange={handleDesktopNotifications}
             />
           </div>
 
           <InstallPwaPrompt />
+          <EnablePushPrompt onEnabled={() => setPushEnabled(true)} />
         </section>
 
         {/* Appearance */}
@@ -966,17 +946,17 @@ const Profile = () => {
           </h2>
 
           <div className="space-y-3">
-            <button className="w-full text-left p-3 rounded-lg hover:bg-muted/50 transition-colors">
+            <button className="w-full text-left p-3 rounded-lg opacity-60 cursor-not-allowed" disabled>
               <p className="font-medium text-foreground">Change Password</p>
-              <p className="text-sm text-muted-foreground">Update your account password</p>
+              <p className="text-sm text-muted-foreground">Update your account password · Coming soon</p>
             </button>
-            <button className="w-full text-left p-3 rounded-lg hover:bg-muted/50 transition-colors">
+            <button className="w-full text-left p-3 rounded-lg opacity-60 cursor-not-allowed" disabled>
               <p className="font-medium text-foreground">Two-Factor Authentication</p>
-              <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
+              <p className="text-sm text-muted-foreground">Add an extra layer of security · Coming soon</p>
             </button>
-            <button className="w-full text-left p-3 rounded-lg hover:bg-muted/50 transition-colors">
+            <button className="w-full text-left p-3 rounded-lg opacity-60 cursor-not-allowed" disabled>
               <p className="font-medium text-foreground">Active Sessions</p>
-              <p className="text-sm text-muted-foreground">Manage your logged in devices</p>
+              <p className="text-sm text-muted-foreground">Manage your logged in devices · Coming soon</p>
             </button>
             <button
               className="w-full text-left p-3 rounded-lg border border-destructive/30 hover:bg-destructive/10 transition-colors"

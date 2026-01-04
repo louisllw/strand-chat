@@ -10,3 +10,5 @@ export const SOCKET_LIMITS = {
   TYPING_INDICATOR_TIMEOUT_MS: Number(process.env.SOCKET_TYPING_INDICATOR_MS || 3000),
   PRESENCE_DEBOUNCE_MS: Number(process.env.SOCKET_PRESENCE_DEBOUNCE_MS || 250),
 };
+
+export const ACTIVE_PRESENCE_KEY_PREFIX = 'presence:active:';

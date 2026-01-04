@@ -269,6 +269,7 @@ Optional tuning:
 - `PG_STATEMENT_TIMEOUT_MS`: query timeout in ms (default `5000`)
 - `DB_RETRY_ATTEMPTS`: retry count for transient read errors (default `2`)
 - `DB_RETRY_DELAY_MS`: base retry delay in ms (default `50`)
+  - Retries are applied only to read-only queries (writes fail immediately).
 - `MESSAGE_READ_RETENTION_DAYS`: days to keep `message_reads` (default `30`, set `0` to disable cleanup)
 - `MESSAGE_READ_CLEANUP_INTERVAL_MS`: cleanup interval in ms (default `21600000`)
 - `MAX_MESSAGE_LENGTH`: max message length in chars (default `4000`)

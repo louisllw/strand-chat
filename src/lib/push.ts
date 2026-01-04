@@ -83,7 +83,8 @@ export const enablePushNotifications = async (): Promise<PushEnableResult> => {
       return { status: 'error', message: 'Push is not configured on the server.' };
     }
 
-    const subscription = await registration.pushManager.subscribe({
+    const existingSubscription = await registration.pushManager.getSubscription();
+    const subscription = existingSubscription ?? await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });

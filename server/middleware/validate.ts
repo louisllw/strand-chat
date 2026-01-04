@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ZodTypeAny } from 'zod';
+import { sendError } from '../utils/errors.js';
 
 export const validate = (schema: ZodTypeAny) => (req: Request, res: Response, next: NextFunction) => {
   const result = schema.safeParse({
@@ -9,10 +10,7 @@ export const validate = (schema: ZodTypeAny) => (req: Request, res: Response, ne
   });
 
   if (!result.success) {
-    return res.status(400).json({
-      error: 'Invalid request',
-      details: result.error.flatten(),
-    });
+    return sendError(res, 400, 'INVALID_REQUEST', 'Invalid request', result.error.flatten());
   }
 
   const parsed = result.data as { body: unknown; params: unknown; query: unknown };

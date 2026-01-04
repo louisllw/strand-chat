@@ -71,7 +71,7 @@ test('requireAuth responds 401 when missing token', async () => {
   });
   assert.equal(called, false);
   assert.equal(res.statusCode, 401);
-  assert.deepEqual(res.body, { error: 'Unauthorized' });
+  assert.deepEqual(res.body, { error: 'Unauthorized', code: 'UNAUTHORIZED' });
 });
 
 test('requireAuth rejects revoked token', async () => {
@@ -87,7 +87,7 @@ test('requireAuth rejects revoked token', async () => {
     });
     assert.equal(called, false);
     assert.equal(res.statusCode, 401);
-    assert.deepEqual(res.body, { error: 'Unauthorized' });
+    assert.deepEqual(res.body, { error: 'Unauthorized', code: 'UNAUTHORIZED' });
   });
 });
 
@@ -124,7 +124,7 @@ test('requireCsrf rejects missing token', async () => {
   const res = createRes();
   await requireCsrf(req, res as unknown as Response, () => {});
   assert.equal(res.statusCode, 403);
-  assert.deepEqual(res.body, { error: 'Invalid CSRF token' });
+  assert.deepEqual(res.body, { error: 'Invalid CSRF token', code: 'CSRF_INVALID' });
 });
 
 test('validate rejects invalid payload', () => {

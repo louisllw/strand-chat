@@ -570,7 +570,6 @@ export const listConversationMembersForUser = async ({
   return rows.map((row) => ({
     id: row.id,
     username: row.username,
-    email: row.email,
     avatar: row.avatar,
     status: row.status,
     lastSeen: row.last_seen,

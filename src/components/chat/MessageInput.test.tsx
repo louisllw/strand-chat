@@ -129,7 +129,7 @@ describe("MessageInput", () => {
   it("opens emoji picker, filters emojis, and inserts emoji", async () => {
     render(<MessageInput />);
 
-    const emojiButton = screen.getAllByRole("button")[2];
+    const emojiButton = screen.getByRole("button", { name: /emoji picker/i });
     fireEvent.click(emojiButton);
 
     const searchInput = await screen.findByPlaceholderText(/search emoji/i);
@@ -151,7 +151,7 @@ describe("MessageInput", () => {
   it("shows recent emojis and closes picker on outside click", async () => {
     render(<MessageInput />);
 
-    const emojiButton = screen.getAllByRole("button")[2];
+    const emojiButton = screen.getByRole("button", { name: /emoji picker/i });
     fireEvent.click(emojiButton);
 
     await waitFor(() =>

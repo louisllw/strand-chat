@@ -4,11 +4,12 @@ import {
   getConversationTypeForMember,
   hasConversationAdmin,
 } from '../models/conversationModel.js';
+import { sendError } from '../utils/errors.js';
 
 export const requireGroupAdmin = async (req: Request, res: Response, next: NextFunction) => {
   const conversationId = req.params.id;
   if (!conversationId) {
-    return res.status(400).json({ error: 'Invalid conversation' });
+    return sendError(res, 400, 'CONVERSATION_INVALID', 'Invalid conversation');
   }
 
   const conversationType = await getConversationTypeForMember({
@@ -16,10 +17,10 @@ export const requireGroupAdmin = async (req: Request, res: Response, next: NextF
     userId: req.user!.userId,
   });
   if (!conversationType) {
-    return res.status(403).json({ error: 'Forbidden' });
+    return sendError(res, 403, 'FORBIDDEN', 'Forbidden');
   }
   if (conversationType !== 'group') {
-    return res.status(400).json({ error: 'Group chat required' });
+    return sendError(res, 400, 'GROUP_REQUIRED', 'Group chat required');
   }
 
   const role = await getConversationMemberRole({
@@ -28,7 +29,7 @@ export const requireGroupAdmin = async (req: Request, res: Response, next: NextF
   });
   const hasAdmin = await hasConversationAdmin({ conversationId });
   if (hasAdmin && role !== 'admin') {
-    return res.status(403).json({ error: 'Admin role required' });
+    return sendError(res, 403, 'ADMIN_REQUIRED', 'Admin role required');
   }
   return next();
 };

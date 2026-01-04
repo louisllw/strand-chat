@@ -288,7 +288,6 @@ export const listConversationMembersDetailed = async (conversationId: string) =>
     `select
        u.id,
        u.username,
-       u.email,
        u.avatar_url as avatar,
        u.status,
        u.last_seen as last_seen,

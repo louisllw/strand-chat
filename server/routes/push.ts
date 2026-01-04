@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { getVapidPublicKey, isPushConfigured, removePushSubscription, savePushSubscription } from '../services/pushService.js';
+import { sendError } from '../utils/errors.js';
 
 const pushSubscriptionSchema = z.object({
   body: z.object({
@@ -31,7 +32,7 @@ const router = Router();
 router.get('/vapid-public-key', requireAuth, (_req, res) => {
   const publicKey = getVapidPublicKey();
   if (!publicKey) {
-    return res.status(503).json({ error: 'Push not configured' });
+    return sendError(res, 503, 'PUSH_NOT_CONFIGURED', 'Push not configured');
   }
   return res.json({ publicKey });
 });
@@ -42,7 +43,7 @@ router.post(
   validate(pushSubscriptionSchema),
   asyncHandler(async (req, res) => {
     if (!isPushConfigured()) {
-      return res.status(503).json({ error: 'Push not configured' });
+      return sendError(res, 503, 'PUSH_NOT_CONFIGURED', 'Push not configured');
     }
     await savePushSubscription(req.user!.userId, req.body);
     return res.json({ ok: true });

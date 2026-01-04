@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/useSocket';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import emojiMartData from '@emoji-mart/data';
-import { Send, Paperclip, Image, Smile, Mic } from 'lucide-react';
+import { Send, Smile, Mic } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
 interface MessageInputProps {
@@ -19,7 +19,6 @@ export const MessageInput = ({ className }: MessageInputProps) => {
   const { sendMessage, replyToMessage, setReplyToMessage } = useChatMessages();
   const { socket } = useSocket();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -213,10 +212,6 @@ export const MessageInput = ({ className }: MessageInputProps) => {
     }
   };
 
-  const handleFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
   if (!activeConversation) return null;
 
   return (
@@ -241,16 +236,6 @@ export const MessageInput = ({ className }: MessageInputProps) => {
           </div>
         )}
         <div className="flex items-end gap-2">
-          {/* Attachment buttons */}
-          <div className="flex gap-1 pb-2">
-            <Button variant="icon" size="iconSm" onClick={handleFileClick}>
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            <Button variant="icon" size="iconSm" className="hidden sm:inline-flex">
-              <Image className="h-5 w-5" />
-            </Button>
-          </div>
-
           {/* Message input */}
           <div className="flex-1 relative">
             <textarea
@@ -275,6 +260,7 @@ export const MessageInput = ({ className }: MessageInputProps) => {
                   size="iconSm"
                   onClick={toggleEmojiPicker}
                   disabled={isLeftConversation}
+                  aria-label="Emoji picker"
                 >
                   <Smile className="h-5 w-5" />
                 </Button>
@@ -391,19 +377,11 @@ export const MessageInput = ({ className }: MessageInputProps) => {
           <Button
             onClick={handleSend}
             disabled={!message.trim() || isLeftConversation}
-            className="rounded-xl h-10 w-10 sm:h-11 sm:w-11 p-0"
+            className="rounded-xl h-11 w-11 p-0"
           >
             <Send className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept="image/*,.pdf,.doc,.docx"
-        />
       </div>
     </div>
   );

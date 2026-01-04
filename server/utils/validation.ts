@@ -7,6 +7,15 @@ export const MAX_MESSAGE_LENGTH = Number(process.env.MAX_MESSAGE_LENGTH || 4000)
 export const MAX_ATTACHMENT_URL_LENGTH = Number(process.env.MAX_ATTACHMENT_URL_LENGTH || 2048);
 export const MAX_DATA_URL_BYTES = Number(process.env.MAX_DATA_URL_BYTES || 2 * 1024 * 1024);
 
+const normalizeUkPhone = (value: string) => value.replace(/[^\d]/g, '');
+
+export const isValidUkNationalPhone = (value: string): boolean => {
+  const digits = normalizeUkPhone(value);
+  if (!digits) return false;
+  if (!digits.startsWith('0')) return false;
+  return digits.length === 10 || digits.length === 11;
+};
+
 const getDataUrlSizeBytes = (value: unknown): number | null => {
   if (!value || typeof value !== 'string' || !value.startsWith('data:')) return null;
   const commaIndex = value.indexOf(',');

@@ -6,6 +6,7 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.PG_POOL_MAX || 20),
   statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || 5000),
 });
 
@@ -88,7 +89,7 @@ export const getClient = async (): Promise<PoolClient> => {
 export const withTransaction = async <T>(callback: (client: PoolClient) => Promise<T>): Promise<T> => {
   const client = await getClient();
   try {
-    await client.query('begin');
+    await client.query('begin isolation level read committed');
     const result = await callback(client);
     await client.query('commit');
     return result;

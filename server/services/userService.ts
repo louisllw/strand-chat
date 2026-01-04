@@ -6,7 +6,7 @@ import {
   isUsernameTaken,
 } from '../models/userModel.js';
 import { getEmojiRecents, upsertEmojiRecent } from '../models/emojiModel.js';
-import { normalizeUsername, isValidUsername } from '../utils/validation.js';
+import { normalizeUsername, isValidUsername, isValidUkNationalPhone } from '../utils/validation.js';
 import { sanitizeProfileField } from '../utils/sanitize.js';
 import { ServiceError } from '../utils/errors.js';
 
@@ -206,6 +206,9 @@ export const updateUserProfile = async (userId: string, payload: UpdateUserPaylo
   }
   if (phone !== undefined) {
     const normalizedPhone = String(phone || '').trim();
+    if (normalizedPhone && !isValidUkNationalPhone(normalizedPhone)) {
+      throw new ServiceError(400, 'PHONE_INVALID', 'Phone number must be a valid UK number.');
+    }
     updates.push(`phone = $${idx++}`);
     values.push(normalizedPhone.length > 0 ? normalizedPhone : null);
   }

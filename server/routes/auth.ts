@@ -12,7 +12,12 @@ const registerSchema = z.object({
   body: z.object({
     username: z.string().min(1),
     email: z.string().email(),
-    password: z.string().min(1),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Z]/, 'Password must contain uppercase')
+      .regex(/[a-z]/, 'Password must contain lowercase')
+      .regex(/[0-9]/, 'Password must contain number'),
   }),
   params: z.object({}),
   query: z.object({}),

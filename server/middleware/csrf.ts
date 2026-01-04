@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { getSecureCookieSetting } from '../auth.js';
 import { getRedisClient } from '../services/redis.js';
+import { sendError } from '../utils/errors.js';
 
 const DEFAULT_CSRF_COOKIE_NAME = 'strand_csrf';
 const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || DEFAULT_CSRF_COOKIE_NAME;
@@ -119,7 +120,7 @@ export const ensureCsrfCookie = (req: Request, res: Response, next: NextFunction
 
 export const issueCsrfToken = async (req: Request, res: Response) => {
   if (!isTrustedOrigin(req)) {
-    return res.status(403).json({ error: 'Invalid origin' });
+    return sendError(res, 403, 'ORIGIN_INVALID', 'Invalid origin');
   }
   const sessionId = ensureCsrfSession(req, res);
   const token = generateToken();
@@ -137,11 +138,11 @@ export const requireCsrf = async (req: Request, res: Response, next: NextFunctio
   const headerToken = req.get('x-csrf-token');
   const sessionId = req.cookies?.[getCsrfCookieName()];
   if (!sessionId || !headerToken) {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
+    return sendError(res, 403, 'CSRF_INVALID', 'Invalid CSRF token');
   }
   const storedToken = await getStoredToken(sessionId);
   if (!storedToken || storedToken !== headerToken) {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
+    return sendError(res, 403, 'CSRF_INVALID', 'Invalid CSRF token');
   }
   return next();
 };

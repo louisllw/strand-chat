@@ -17,5 +17,5 @@ export const errorHandler = (err: unknown, _req: Request, res: Response, _next: 
     const errorMessage = err instanceof Error ? err.message : undefined;
     logger.error('[error]', { errorId, requestId, message: errorMessage });
   }
-  return res.status(500).json({ error: 'Internal server error', errorId });
+  return res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR', errorId });
 };

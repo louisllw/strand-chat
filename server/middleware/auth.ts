@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { verifyToken, getAuthCookieName, authCookieOptions } from '../auth.js';
 import { isTokenRevoked } from '../services/tokenRevocation.js';
 import { logger } from '../utils/logger.js';
+import { sendError } from '../utils/errors.js';
 
 const COOKIE_NAME = getAuthCookieName();
 
@@ -46,7 +47,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       const { maxAge: _maxAge, ...cookieOptions } = authCookieOptions();
       res.clearCookie(COOKIE_NAME, cookieOptions);
     }
-    return res.status(401).json({ error: 'Unauthorized' });
+    return sendError(res, 401, 'UNAUTHORIZED', 'Unauthorized');
   }
   req.user = user;
   next();

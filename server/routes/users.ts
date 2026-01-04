@@ -11,6 +11,7 @@ import { apiWriteRateLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
+import { isValidUkNationalPhone } from '../utils/validation.js';
 
 const router = Router();
 
@@ -28,7 +29,16 @@ export const updateMeSchema = z.object({
     email: z.string().email().optional(),
     avatar: z.string().optional().nullable(),
     banner: z.string().optional().nullable(),
-    phone: z.string().optional().nullable(),
+    phone: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((value) => {
+        if (value == null) return true;
+        const trimmed = value.trim();
+        if (!trimmed) return true;
+        return isValidUkNationalPhone(trimmed);
+      }, { message: 'Phone number must be a valid UK number.' }),
     bio: z.string().optional().nullable(),
     website: z.string().optional().nullable(),
     socialX: z.string().optional().nullable(),

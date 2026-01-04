@@ -10,9 +10,8 @@ type PushPayload = {
   badge?: string;
 };
 
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+const DEFAULT_TTL_SECONDS = 300;
 
 const getWebPush = () => {
   const maybeDefault = webPush as unknown as { default?: typeof webPush };
@@ -29,17 +28,36 @@ const isPlaceholder = (value?: string) => {
   return value === 'replace_me' || value === 'change_me_in_production';
 };
 
+const readVapidPublicKey = () => process.env.VAPID_PUBLIC_KEY;
+
+const readVapidPrivateKey = () => process.env.VAPID_PRIVATE_KEY;
+
+const getPushTtlSeconds = () => {
+  const ttl = Number(process.env.PUSH_TTL_SECONDS || DEFAULT_TTL_SECONDS);
+  if (!Number.isFinite(ttl) || ttl <= 0) return DEFAULT_TTL_SECONDS;
+  return ttl;
+};
+
 const configureWebPush = () => {
   if (configured) return true;
-  if (isPlaceholder(VAPID_PUBLIC_KEY) || isPlaceholder(VAPID_PRIVATE_KEY)) return false;
-  getWebPush().setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY!, VAPID_PRIVATE_KEY!);
+  const publicKey = readVapidPublicKey();
+  const privateKey = readVapidPrivateKey();
+  if (isPlaceholder(publicKey) || isPlaceholder(privateKey)) return false;
+  getWebPush().setVapidDetails(VAPID_SUBJECT, publicKey!, privateKey!);
   configured = true;
   return true;
 };
 
-export const isPushConfigured = () => !isPlaceholder(VAPID_PUBLIC_KEY) && !isPlaceholder(VAPID_PRIVATE_KEY);
+export const isPushConfigured = () => {
+  const publicKey = readVapidPublicKey();
+  const privateKey = readVapidPrivateKey();
+  return !isPlaceholder(publicKey) && !isPlaceholder(privateKey);
+};
 
-export const getVapidPublicKey = () => (isPlaceholder(VAPID_PUBLIC_KEY) ? null : VAPID_PUBLIC_KEY || null);
+export const getVapidPublicKey = () => {
+  const publicKey = readVapidPublicKey();
+  return isPlaceholder(publicKey) ? null : publicKey || null;
+};
 
 export const savePushSubscription = async (userId: string, subscription: { endpoint: string }) => {
   if (!isPushConfigured()) {
@@ -76,7 +94,7 @@ export const sendPushToUsers = async (userIds: string[], payload: PushPayload) =
             options?: { TTL?: number; urgency?: 'very-low' | 'low' | 'normal' | 'high' }
           ) => Promise<void>;
         await sendNotification(record.subscription as webPush.PushSubscription, JSON.stringify(payload), {
-          TTL: 15,
+          TTL: getPushTtlSeconds(),
           urgency: 'high',
         });
       } catch (error) {
