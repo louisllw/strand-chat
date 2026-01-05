@@ -7,6 +7,13 @@ export type MessageSendPayload = {
   content: string;
   type?: 'text' | 'image' | 'file';
   attachmentUrl?: string;
+  attachmentMeta?: {
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+  };
   replyToId?: string | null;
   clientMessageId?: string;
 };

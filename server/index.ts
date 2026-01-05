@@ -11,6 +11,7 @@ import usersRoutes from './routes/users.js';
 import createConversationsRouter from './routes/conversations.js';
 import createMessagesRouter from './routes/messages.js';
 import pushRoutes from './routes/push.js';
+import createUploadsRouter from './routes/uploads.js';
 import { getSecureCookieSetting } from './auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { ensureCsrfCookie, requireCsrf } from './middleware/csrf.js';
@@ -20,6 +21,7 @@ import { query } from './db.js';
 import { logger } from './utils/logger.js';
 import { startMessageReadCleanup } from './services/messageReadCleanup.js';
 import { buildCspDirectives } from './utils/csp.js';
+import { startUploadCleanup } from './services/uploadCleanup.js';
 
 const app = express();
 const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1';
@@ -110,6 +112,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/conversations', createConversationsRouter(socketManager));
 app.use('/api/messages', createMessagesRouter(socketManager));
 app.use('/api/push', pushRoutes);
+app.use('/api/uploads', createUploadsRouter());
 
 app.use(errorHandler);
 
@@ -121,3 +124,4 @@ server.listen(port, () => {
 });
 
 startMessageReadCleanup();
+startUploadCleanup();

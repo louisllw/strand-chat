@@ -55,7 +55,8 @@ const baseConversationsSelect = `
       'timestamp', m.created_at,
       'read', false,
       'type', m.type,
-      'attachmentUrl', m.attachment_url
+      'attachmentUrl', m.attachment_url,
+      'attachmentMeta', m.attachment_meta
     ) as last_message,
     m.created_at as last_message_created_at
     from messages m

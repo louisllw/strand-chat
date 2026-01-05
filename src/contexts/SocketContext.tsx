@@ -17,8 +17,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const handleConnect = () => {
       setIsConnected(true);
-      setPresenceStatus('online');
-      socket.emit('presence:active');
+      if (document.visibilityState === 'visible') {
+        setPresenceStatus('online');
+        socket.emit('presence:active');
+      } else {
+        setPresenceStatus('away');
+        socket.emit('presence:away');
+      }
     };
     const handleDisconnect = () => {
       setIsConnected(false);
@@ -54,6 +59,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!socket || !isConnected) return;
     let idleTimer: number | undefined;
     let lastState: 'active' | 'away' = 'active';
+    const activityListenerOptions = { passive: true } as const;
 
     const setAway = () => {
       if (lastState !== 'away') {
@@ -81,15 +87,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    activityEvents.forEach(event => window.addEventListener(event, setActive, { passive: true }));
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'input', 'focusin'];
+    activityEvents.forEach(event => window.addEventListener(event, setActive, activityListenerOptions));
     document.addEventListener('visibilitychange', handleVisibility);
 
     setActive();
 
     return () => {
       if (idleTimer) window.clearTimeout(idleTimer);
-      activityEvents.forEach(event => window.removeEventListener(event, setActive));
+      activityEvents.forEach(event => window.removeEventListener(event, setActive, activityListenerOptions));
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [idleTimeoutMs, isConnected]);

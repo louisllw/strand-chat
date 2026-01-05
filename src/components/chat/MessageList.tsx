@@ -8,6 +8,7 @@ import { TypingIndicator } from './TypingIndicator';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { fetchImageToCache, getCachedImageUrl } from '@/lib/image-cache';
 
 interface MessageListProps {
   className?: string;
@@ -43,12 +44,16 @@ export const MessageList = ({ className }: MessageListProps) => {
   const isAtBottomRef = useRef(true);
   const isPrependingRef = useRef(false);
   const isAutoScrollingRef = useRef(false);
+  const forceScrollRef = useRef(false);
+  const lastMessageIdRef = useRef<string | null>(null);
   const lastViewportHeightRef = useRef<number | null>(null);
   const keyboardInset = useKeyboardInset();
   const conversationId = activeConversation?.id ?? null;
   const activeTyping = typingIndicators.filter(
     t => t.conversationId === activeConversation?.id
   );
+  const preloadObserverRef = useRef<IntersectionObserver | null>(null);
+  const currentUserId = user?.id;
 
   const getInputHeight = () => {
     if (typeof window === 'undefined') return 0;
@@ -82,6 +87,13 @@ export const MessageList = ({ className }: MessageListProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
+  const handleImageLoad = useCallback(() => {
+    if (!isAtBottomRef.current) return;
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    });
+  }, []);
+
   const updateScrollState = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -109,16 +121,29 @@ export const MessageList = ({ className }: MessageListProps) => {
   };
 
   useEffect(() => {
-    if (isAtBottomRef.current) {
+    const latestMessage = messages[messages.length - 1];
+    const latestMessageId = latestMessage?.id ?? null;
+    const isNewMessage = Boolean(latestMessageId && latestMessageId !== lastMessageIdRef.current);
+    const shouldStick = forceScrollRef.current
+      || isAtBottomRef.current
+      || (isNewMessage && latestMessage?.senderId === currentUserId);
+
+    if (shouldStick) {
+      isAtBottomRef.current = true;
       isAutoScrollingRef.current = true;
+      const behavior: ScrollBehavior = forceScrollRef.current ? 'smooth' : 'auto';
+      queueMicrotask(() => setIsAtBottom(true));
       requestAnimationFrame(() => {
-        scrollToBottom('auto');
+        scrollToBottom(behavior);
         requestAnimationFrame(() => {
+          forceScrollRef.current = false;
           isAutoScrollingRef.current = false;
         });
       });
     }
-  }, [messages, scrollToBottom]);
+
+    lastMessageIdRef.current = latestMessageId;
+  }, [currentUserId, messages, scrollToBottom]);
 
   useEffect(() => {
     if (!isAtBottomRef.current) return;
@@ -189,6 +214,23 @@ export const MessageList = ({ className }: MessageListProps) => {
   }, [replyToMessage]);
 
   useEffect(() => {
+    const handleScrollToBottom = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
+      if (detail?.conversationId && detail.conversationId !== conversationId) return;
+      forceScrollRef.current = true;
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    };
+    window.addEventListener('chat:scroll-bottom', handleScrollToBottom);
+    return () => {
+      window.removeEventListener('chat:scroll-bottom', handleScrollToBottom);
+    };
+  }, [conversationId]);
+
+  useEffect(() => {
     const container = containerRef.current;
     if (!container || !messagesEndRef.current) return;
 
@@ -226,7 +268,56 @@ export const MessageList = ({ className }: MessageListProps) => {
     return () => visualViewport.removeEventListener('resize', updateViewport);
   }, []);
 
-  const currentUserId = user?.id;
+  const observePreloadTargets = useCallback(() => {
+    const container = containerRef.current;
+    const observer = preloadObserverRef.current;
+    if (!container || !observer) return;
+    container.querySelectorAll('[data-preload-image="true"]').forEach((node) => {
+      observer.observe(node);
+    });
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === 'undefined') return;
+    preloadObserverRef.current?.disconnect();
+    preloadObserverRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const target = entry.target as HTMLElement;
+        const messageId = target.dataset.messageId || '';
+        const attachmentUrl = target.dataset.attachmentUrl || '';
+        const thumbnailUrl = target.dataset.thumbnailUrl || '';
+        if (messageId && attachmentUrl) {
+          const cacheKey = `${messageId}:${attachmentUrl}`;
+          if (!getCachedImageUrl(cacheKey)) {
+            fetchImageToCache(cacheKey, `/api/uploads/messages/${messageId}`).catch(() => undefined);
+          }
+        }
+        if (messageId && thumbnailUrl) {
+          const cacheKey = `thumb:${messageId}:${thumbnailUrl}`;
+          if (!getCachedImageUrl(cacheKey)) {
+            fetchImageToCache(cacheKey, `/api/uploads/messages/${messageId}/thumbnail`).catch(() => undefined);
+          }
+        }
+        preloadObserverRef.current?.unobserve(entry.target);
+      });
+    }, {
+      root: container,
+      rootMargin: '400px 0px',
+      threshold: 0.1,
+    });
+    observePreloadTargets();
+    return () => {
+      preloadObserverRef.current?.disconnect();
+      preloadObserverRef.current = null;
+    };
+  }, [conversationId, observePreloadTargets]);
+
+  useEffect(() => {
+    observePreloadTargets();
+  }, [messages, observePreloadTargets]);
+
   const selectedMessageId = selectionState.conversationId === conversationId
     ? selectionState.messageId
     : null;
@@ -333,6 +424,15 @@ export const MessageList = ({ className }: MessageListProps) => {
                     messageRefs.current[message.id] = node;
                   }}
                 >
+                  {message.type === 'image' && message.attachmentUrl && (
+                    <div
+                      data-preload-image="true"
+                      data-message-id={message.id}
+                      data-attachment-url={message.attachmentUrl}
+                      data-thumbnail-url={message.attachmentMeta?.thumbnailUrl || ''}
+                      className="h-0 w-0 overflow-hidden"
+                    />
+                  )}
                   <MessageBubble
                     message={message}
                     isSent={isSent}
@@ -349,6 +449,7 @@ export const MessageList = ({ className }: MessageListProps) => {
                         return { conversationId, messageId: nextId };
                       });
                     }}
+                    onImageLoad={handleImageLoad}
                   />
                 </div>
               );

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Conversation, Message, MessageReaction } from '@/types';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/useAuth';
@@ -15,6 +16,7 @@ import {
 export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { socket, on, off, emit } = useSocket();
+  const location = useLocation();
   const conversationsRef = useRef<Conversation[]>([]);
   const joinedConversationsRef = useRef<Set<string>>(new Set());
   const persistTimeoutRef = useRef<number | null>(null);
@@ -129,6 +131,23 @@ export const ChatConversationsProvider: React.FC<{ children: React.ReactNode }> 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
+
+  useEffect(() => {
+    if (!location?.search) return;
+    const params = new URLSearchParams(location.search);
+    const nextId = params.get('conversationId');
+    if (!nextId) return;
+    if (activeConversationRef.current?.id === nextId) return;
+    const match = conversationsRef.current.find(conv => conv.id === nextId) || null;
+    if (match) {
+      queueMicrotask(() => {
+        setActiveConversation(match);
+        safeStorage.set(STORAGE_LAST_ACTIVE_KEY, match.id);
+      });
+    } else {
+      pendingConversationIdRef.current = nextId;
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (!socket || !socket.connected) return;

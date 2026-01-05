@@ -62,6 +62,7 @@ create table if not exists messages (
   content text not null,
   type text not null default 'text' check (type in ('text', 'image', 'file', 'system')),
   attachment_url text,
+  attachment_meta jsonb,
   reply_to_id uuid references messages(id) on delete set null,
   created_at timestamptz not null default now()
 );

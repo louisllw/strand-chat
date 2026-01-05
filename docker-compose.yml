@@ -95,6 +95,13 @@ services:
           memory: 256M
           cpus: '0.25'
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiODQwNzU1YzAwZjE5ZWEzZGZhNjc4OThjZDFkYTQxMzciLCJ0IjoiMzBmYThkOTQtNDUyNi00ZjE2LTgyMjMtZWQ0ZTZkMmI4MjAyIiwicyI6Ik9HVTVORFF3TW1VdFpqazBPUzAwTUdVNUxXSm1OVFF0T1RReU5tRTVNVGt6WWpCayJ9
+    depends_on:
+      - strand-web
+
 volumes:
   db_data:
   server_data:

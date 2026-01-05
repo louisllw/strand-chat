@@ -50,6 +50,13 @@ export interface Message {
   read: boolean;
   type: 'text' | 'image' | 'file' | 'system';
   attachmentUrl?: string;
+  attachmentMeta?: {
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+  };
   replyTo?: {
     id: string;
     content: string;

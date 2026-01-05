@@ -313,7 +313,18 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
     shouldMarkRead,
   ]);
 
-  const sendMessage = useCallback((content: string, type: 'text' | 'image' | 'file' = 'text') => {
+  const sendMessage = useCallback((
+    content: string,
+    type: 'text' | 'image' | 'file' = 'text',
+    attachmentUrl?: string,
+    attachmentMeta?: {
+      width?: number;
+      height?: number;
+      thumbnailUrl?: string;
+      thumbnailWidth?: number;
+      thumbnailHeight?: number;
+    }
+  ) => {
     if (!activeConversation || !content.trim()) return;
     const clientMessageId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -322,6 +333,8 @@ export const ChatMessagesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       conversationId: activeConversation.id,
       content,
       type,
+      attachmentUrl,
+      attachmentMeta,
       replyToId: replyToMessage?.id,
       clientMessageId,
     };

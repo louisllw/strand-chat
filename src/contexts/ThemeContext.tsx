@@ -12,6 +12,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      const themeColor = theme === 'dark' ? '#0f172a' : '#f8fafc';
+      meta.setAttribute('content', themeColor);
+    }
   }, [theme]);
 
   useEffect(() => {

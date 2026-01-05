@@ -10,6 +10,13 @@ export type CreateMessageRow = {
   created_at: string | null;
   type: string | null;
   attachment_url: string | null;
+  attachment_meta: {
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+  } | null;
   sender_username: string | null;
   reply_id: string | null;
   reply_content: string | null;
@@ -52,6 +59,7 @@ export const createMessageWithMembership = async ({
   content,
   type,
   attachmentUrl,
+  attachmentMeta,
   replyToId,
 }: {
   conversationId: string;
@@ -59,6 +67,7 @@ export const createMessageWithMembership = async ({
   content: string;
   type: string;
   attachmentUrl?: string | null;
+  attachmentMeta?: { width?: number; height?: number } | null;
   replyToId?: string | null;
 }): Promise<CreateMessageRow | null> => {
   // CTE pipeline: verify membership + reply, insert, update unread counts, unhide, return hydrated row.
@@ -71,13 +80,13 @@ export const createMessageWithMembership = async ({
        reply_check as (
          select 1 as ok
          from messages
-         where id = $6 and conversation_id = $1
+         where id = $7 and conversation_id = $1
        ),
        inserted as (
-         insert into messages (conversation_id, sender_id, content, type, attachment_url, reply_to_id)
-         select $1, $2, $3, $4, $5, $6
+         insert into messages (conversation_id, sender_id, content, type, attachment_url, attachment_meta, reply_to_id)
+         select $1, $2, $3, $4, $5, $6, $7
          where exists (select 1 from membership)
-           and ($6::uuid is null or exists (select 1 from reply_check))
+           and ($7::uuid is null or exists (select 1 from reply_check))
          returning *
        ),
        unread as (
@@ -102,7 +111,7 @@ export const createMessageWithMembership = async ({
        base as (
          select
            exists(select 1 from membership) as is_member,
-           ($6::uuid is null or exists(select 1 from reply_check)) as reply_ok
+           ($7::uuid is null or exists(select 1 from reply_check)) as reply_ok
        )
      select
        base.is_member,
@@ -114,6 +123,7 @@ export const createMessageWithMembership = async ({
        m.created_at,
        m.type,
        m.attachment_url,
+       m.attachment_meta,
        u.username as sender_username,
        rm.id as reply_id,
        rm.content as reply_content,
@@ -137,17 +147,20 @@ export const createMessageWithMembership = async ({
        m.created_at,
        m.type,
        m.attachment_url,
+       m.attachment_meta,
+       m.attachment_meta,
        u.username,
        rm.id,
        rm.content,
        rm.sender_id`;
   const normalizedReplyToId = replyToId || null;
-  const params: [string, string, string, string, string | null, string | null] = [
+  const params: [string, string, string, string, string | null, unknown | null, string | null] = [
     conversationId,
     userId,
     content,
     type,
     attachmentUrl || null,
+    attachmentMeta || null,
     normalizedReplyToId,
   ];
   const result = await query(
@@ -179,6 +192,24 @@ export const getMessageCursor = async ({
   return result.rows[0] || null;
 };
 
+export const getMessageAttachment = async (messageId: string) => {
+  const result = await query(
+    `select id, conversation_id, type, attachment_url, attachment_meta
+     from messages
+     where id = $1`,
+    [messageId]
+  );
+  const row = result.rows[0] || null;
+  if (!row) return null;
+  return {
+    id: row.id as string,
+    conversationId: row.conversation_id as string,
+    type: row.type as string,
+    attachmentUrl: row.attachment_url as string | null,
+    attachmentMeta: row.attachment_meta as { thumbnailUrl?: string } | null,
+  };
+};
+
 export const getConversationMessages = async ({
   conversationId,
   userId,
@@ -208,6 +239,7 @@ export const getConversationMessages = async ({
        m.type,
        su.username as sender_username,
        m.attachment_url,
+       m.attachment_meta,
        rm.id as reply_id,
        rm.content as reply_content,
        rm.sender_id as reply_sender_id,

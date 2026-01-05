@@ -7,7 +7,18 @@ export interface ChatMessagesContextType {
   isLoadingOlder: boolean;
   hasMoreMessages: boolean;
   setReplyToMessage: (message: Message | null) => void;
-  sendMessage: (content: string, type?: 'text' | 'image' | 'file') => void;
+  sendMessage: (
+    content: string,
+    type?: 'text' | 'image' | 'file',
+    attachmentUrl?: string,
+    attachmentMeta?: {
+      width?: number;
+      height?: number;
+      thumbnailUrl?: string;
+      thumbnailWidth?: number;
+      thumbnailHeight?: number;
+    }
+  ) => void;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
   loadOlderMessages: () => Promise<number>;
 }

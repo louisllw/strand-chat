@@ -16,6 +16,13 @@ type MessageRow = {
   created_at: string;
   type: string;
   attachment_url?: string | null;
+  attachment_meta?: {
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+  } | null;
   reply_id?: string | null;
   reply_content?: string | null;
   reply_sender_id?: string | null;
@@ -52,6 +59,7 @@ export const mapMessageRow = (row: MessageRow) => ({
   read: false,
   type: row.type,
   attachmentUrl: row.attachment_url,
+  attachmentMeta: row.attachment_meta ?? undefined,
   replyTo: row.reply_id
     ? {
         id: row.reply_id,
@@ -72,6 +80,7 @@ export const mapInsertedMessageRow = (row: MessageRow) => ({
   read: false,
   type: row.type,
   attachmentUrl: row.attachment_url,
+  attachmentMeta: row.attachment_meta ?? undefined,
   replyTo: row.reply_id
     ? {
         id: row.reply_id,
@@ -88,6 +97,7 @@ export const createMessage = async ({
   content,
   type,
   attachmentUrl,
+  attachmentMeta,
   replyToId,
 }: {
   conversationId: string;
@@ -95,6 +105,13 @@ export const createMessage = async ({
   content: string;
   type: string;
   attachmentUrl?: string | null;
+  attachmentMeta?: {
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+    thumbnailWidth?: number;
+    thumbnailHeight?: number;
+  } | null;
   replyToId?: string | null;
 }): Promise<{
   isMember: boolean;
@@ -108,6 +125,7 @@ export const createMessage = async ({
     content,
     type,
     attachmentUrl,
+    attachmentMeta,
     replyToId,
   });
   return {

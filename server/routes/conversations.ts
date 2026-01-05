@@ -35,6 +35,13 @@ export const sendMessageSchema = z.object({
     content: z.string().min(1),
     type: z.enum(['text', 'image', 'file']).optional(),
     attachmentUrl: z.string().optional(),
+    attachmentMeta: z.object({
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+      thumbnailUrl: z.string().optional(),
+      thumbnailWidth: z.number().int().positive().optional(),
+      thumbnailHeight: z.number().int().positive().optional(),
+    }).optional(),
     replyToId: z.string().uuid().optional(),
     clientMessageId: z.string().optional(),
   }),

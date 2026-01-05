@@ -3,7 +3,7 @@ import type { SocketManager } from './manager.js';
 import { verifyToken, getAuthCookieName } from '../auth.js';
 import { isTokenRevoked } from '../services/tokenRevocation.js';
 import { getConversationMembership, listConversationIdsForUser } from '../models/conversationModel.js';
-import { updateUserStatus, updateUserStatusWithProfile } from '../models/userModel.js';
+import { findUserPublicById, updateUserStatus } from '../models/userModel.js';
 import { createMessage, toggleReaction } from '../services/messageService.js';
 import { getConversationInfoForMember, listConversationMemberIdsForUser } from '../services/conversationService.js';
 import {
@@ -41,13 +41,28 @@ const {
   TYPING_INDICATOR_TIMEOUT_MS,
   PRESENCE_DEBOUNCE_MS,
 } = SOCKET_LIMITS;
-const ACTIVE_PRESENCE_TTL_MS = 20000;
+const ACTIVE_PRESENCE_TTL_MS = 5000;
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : undefined);
 const createErrorId = () => randomUUID();
 
 export const registerSocketHandlers = (io: Server, socketManager: SocketManager) => {
   const COOKIE_NAME = getAuthCookieName();
+  const getPresenceSummary = (userId: string, excludeSocketId?: string) => {
+    let hasAny = false;
+    let hasActive = false;
+    io.of('/').sockets.forEach((candidate: Socket) => {
+      if (candidate.user?.userId !== userId) return;
+      if (excludeSocketId && candidate.id === excludeSocketId) return;
+      hasAny = true;
+      const presenceState = candidate.data.presenceState as 'active' | 'away' | undefined;
+      if (presenceState !== 'away') {
+        hasActive = true;
+      }
+    });
+    return { hasAny, hasActive };
+  };
+
   const sweepConnections = () => {
     connectionCounts.clear();
     io.of('/').sockets.forEach((socket: Socket) => {
@@ -144,9 +159,10 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     }
     socket.join(`user:${userId}`);
 
-    const userProfile = await updateUserStatusWithProfile(userId, 'online');
+    const userProfile = await findUserPublicById(userId);
     const conversationIds = await listConversationIdsForUser(userId);
     socket.data.conversationIds = new Set(conversationIds);
+    socket.data.presenceState = 'away';
     const typingState = new Map<string, { timeoutId: ReturnType<typeof setTimeout>; seq: number }>();
     let presenceTimeout: ReturnType<typeof setTimeout> | null = null;
     let pendingPresenceStatus: string | null = null;
@@ -226,9 +242,6 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       socket.join(conversationId);
     });
 
-    const initialLastSeen = new Date().toISOString();
-    emitPresenceUpdate('online', initialLastSeen);
-
     const hasConversationAccess = (conversationId: string) =>
       Boolean(socket.data.conversationIds && socket.data.conversationIds.has(conversationId));
     // Layered rate limits: per-socket, per-user (process), then Redis (shared).
@@ -301,6 +314,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     socket.on('conversation:active', (conversationId: string | null) => {
       const previousConversationId = socket.data.activeConversationId ?? null;
       if (!conversationId) {
+        logger.info('[presence] user went inactive', { userId, previousConversationId });
         socket.data.activeConversationId = null;
         socket.data.activeConversationAt = undefined;
         void updateActivePresence(null, previousConversationId);
@@ -309,6 +323,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       if (!socket.data.conversationIds || !socket.data.conversationIds.has(conversationId)) {
         return;
       }
+      logger.info('[presence] user now active', { userId, conversationId });
       socket.data.activeConversationId = conversationId;
       socket.data.activeConversationAt = Date.now();
       void updateActivePresence(conversationId, previousConversationId);
@@ -320,6 +335,13 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
         content?: string;
         type?: string;
         attachmentUrl?: string;
+        attachmentMeta?: {
+          width?: number;
+          height?: number;
+          thumbnailUrl?: string;
+          thumbnailWidth?: number;
+          thumbnailHeight?: number;
+        };
         replyToId?: string | null;
         clientMessageId?: string;
       } | null,
@@ -335,6 +357,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           content,
           type = 'text',
           attachmentUrl,
+          attachmentMeta,
           replyToId,
           clientMessageId,
         } = payload || {};
@@ -357,6 +380,39 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
             return;
           }
         }
+        if (attachmentMeta) {
+          const width = attachmentMeta.width;
+          const height = attachmentMeta.height;
+          const valid = typeof width === 'number'
+            && typeof height === 'number'
+            && Number.isFinite(width)
+            && Number.isFinite(height)
+            && width > 0
+            && height > 0;
+          if (!valid) {
+            if (callback) callback({ error: 'Invalid attachment metadata' });
+            return;
+          }
+          const thumbUrl = attachmentMeta.thumbnailUrl;
+          const thumbWidth = attachmentMeta.thumbnailWidth;
+          const thumbHeight = attachmentMeta.thumbnailHeight;
+          const hasThumbMeta = Boolean(thumbUrl || thumbWidth || thumbHeight);
+          if (hasThumbMeta) {
+            const thumbValid = typeof thumbUrl === 'string'
+              && typeof thumbWidth === 'number'
+              && typeof thumbHeight === 'number'
+              && Number.isFinite(thumbWidth)
+              && Number.isFinite(thumbHeight)
+              && thumbWidth > 0
+              && thumbHeight > 0
+              && !isAttachmentUrlTooLong(thumbUrl)
+              && !isDataUrlTooLarge(thumbUrl);
+            if (!thumbValid) {
+              if (callback) callback({ error: 'Invalid attachment metadata' });
+              return;
+            }
+          }
+        }
 
         if (clientMessageId) {
           const existing = await getMessageDedup(userId, clientMessageId);
@@ -372,6 +428,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
           content: sanitizedContent,
           type,
           attachmentUrl,
+          attachmentMeta,
           replyToId,
         });
         if (!result.replyOk) {
@@ -548,6 +605,7 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     socket.on('presence:active', async () => {
       try {
         const lastSeen = new Date().toISOString();
+        socket.data.presenceState = 'active';
         await updateUserStatus(userId, 'online');
         schedulePresenceUpdate('online', lastSeen);
       } catch (error) {
@@ -565,6 +623,11 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
     socket.on('presence:away', async () => {
       try {
         const lastSeen = new Date().toISOString();
+        socket.data.presenceState = 'away';
+        const { hasActive } = getPresenceSummary(userId, socket.id);
+        if (hasActive) {
+          return;
+        }
         await updateUserStatus(userId, 'away');
         schedulePresenceUpdate('away', lastSeen);
       } catch (error) {
@@ -600,8 +663,27 @@ export const registerSocketHandlers = (io: Server, socketManager: SocketManager)
       if (socket.data.activeConversationId) {
         void updateActivePresence(null, socket.data.activeConversationId);
       }
-      const remaining = connectionCounts.get(userId) || 0;
-      if (remaining > 0) return;
+      socket.data.presenceState = 'away';
+      const { hasAny, hasActive } = getPresenceSummary(userId, socket.id);
+      if (hasAny) {
+        if (!hasActive) {
+          try {
+            const lastSeen = new Date().toISOString();
+            await updateUserStatus(userId, 'away');
+            schedulePresenceUpdate('away', lastSeen);
+          } catch (error) {
+            const errorId = createErrorId();
+            logger.warn('[socket] Failed to update presence', {
+              errorId,
+              userId,
+              status: 'away',
+              error: getErrorMessage(error),
+            });
+            emitSocketError('presence:away', 'Failed to update presence', error, 'ERROR');
+          }
+        }
+        return;
+      }
       userRateLimits.delete(userId);
       try {
         await updateUserStatus(userId, 'offline');

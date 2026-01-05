@@ -79,7 +79,7 @@ const refreshAuth = async () => {
   return authRefreshPromise;
 };
 
-const getCsrfToken = async (): Promise<string> => {
+export const getCsrfToken = async (): Promise<string> => {
   if (csrfToken) return csrfToken;
   if (!csrfPromise) {
     csrfPromise = fetch(`${API_BASE}/api/auth/csrf`, { credentials: 'include' })

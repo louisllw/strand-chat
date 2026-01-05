@@ -27,3 +27,4 @@ docker-compose.local.yml
 *.sw?
 .env
 server/.env
+.continue/

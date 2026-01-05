@@ -101,7 +101,7 @@ export const createConversationController = (socketManager: SocketManager) => ({
   sendMessage: async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const conversationId = req.params.id;
-    const { content, type = 'text', attachmentUrl, replyToId, clientMessageId } = req.body || {};
+    const { content, type = 'text', attachmentUrl, attachmentMeta, replyToId, clientMessageId } = req.body || {};
     const sanitizedContent = sanitizeText(content);
 
     if (!sanitizedContent.trim()) {
@@ -132,6 +132,7 @@ export const createConversationController = (socketManager: SocketManager) => ({
       content: sanitizedContent,
       type,
       attachmentUrl,
+      attachmentMeta,
       replyToId,
     });
     if (!result.replyOk) {
